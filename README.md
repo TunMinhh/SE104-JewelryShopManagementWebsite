@@ -55,50 +55,34 @@
 
 ## CÀI ĐẶT VÀ TRIỂN KHAI
 <a name="caidat"></a>
-# 1️. Clone project
 
+```bash
+# Clone project
 git clone https://github.com/TunMinhh/SE104-JewelryShopManagementWebsite.git
+
 cd SE104-JewelryShopManagementWebsite
 
----
 
-# 2. Cài đặt Backend (FastAPI)
-
+# Cài đặt backend
 cd backend
 
-### Tạo môi trường ảo
+- Tạo môi trường ảo
 python -m venv venv
 
-### Kích hoạt môi trường ảo
-
-PowerShell:
+- Kích hoạt môi trường ảo
 venv\\Scripts\\Activate.ps1
 
-CMD:
-venv\\Scripts\\activate
-
-### Cài thư viện
+- Cài thư viện
 pip install -r requirements.txt
 
-### Chạy server
+- Chạy server
 python -m uvicorn main:app --reload
 
-Backend chạy tại:
-http://127.0.0.1:8000
-
-Tài liệu API:
-http://127.0.0.1:8000/docs
-
----
-
-# 3. Cài đặt Frontend (React)
-
-Mở terminal mới:
-
+# Cài đặt frontend
+- Mở terminal mới:
 cd frontend
 
 npm install
-npm run dev
 
-Frontend chạy tại:
-http://localhost:5173
+npm run dev
+```
