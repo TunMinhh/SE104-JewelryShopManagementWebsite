@@ -46,11 +46,11 @@
 
 ## CHỨC NĂNG HỆ THỐNG
 <a name="chucnang"></a>
-*1	Lập phiếu bán hàng	
-*2	Lập phiếu mua hàng	
-*3	Lập phiếu dịch vụ	
-*4	Tra cứu phiếu dịch vụ		
-*5	Lập báo cáo tồn kho
+* 1	Lập phiếu bán hàng	
+* 2	Lập phiếu mua hàng	
+* 3	Lập phiếu dịch vụ	
+* 4	Tra cứu phiếu dịch vụ		
+* 5	Lập báo cáo tồn kho
 
 
 ## CÀI ĐẶT VÀ TRIỂN KHAI
