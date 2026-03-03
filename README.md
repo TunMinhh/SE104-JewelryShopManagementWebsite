@@ -23,12 +23,13 @@
 
 ## THÀNH VIÊN NHÓM
 <a name="thanhvien"></a>
-| STT | MSSV | Họ và Tên | Email | 
-| --- | --- | --- | --- | --- | 
-| 1 | 23520310 | Nguyễn Minh Đức | 23520310@gm.uit.edu.vn | 
-| 2 | 23520959 | Trần Tuấn Minh | 23520959@gm.uit.edu.vn | 
-| 3 | 23520977 | Nguyễn Hữu Phương Nam | 23520977@gm.uit.edu.vn | 
-| 3 | 23521446 | Lưu Đặng Thành | 23521446@gm.uit.edu.vn | 
+| STT | MSSV     | Họ và Tên               | Email                       |
+|-----|----------|------------------------|-----------------------------|
+| 1   | 23520310 | Nguyễn Minh Đức        | 23520310@gm.uit.edu.vn      |
+| 2   | 23520959 | Trần Tuấn Minh         | 23520959@gm.uit.edu.vn      |
+| 3   | 23520977 | Nguyễn Hữu Phương Nam  | 23520977@gm.uit.edu.vn      |
+| 4   | 23521446 | Lưu Đặng Thành         | 23521446@gm.uit.edu.vn      |
+
 
 ## ĐỒ ÁN MÔN HỌC
 <a name="doan"></a>
@@ -39,17 +40,17 @@
 ## CÔNG NGHỆ SỬ DỤNG
 <a name="congnghe"></a>
 * **Công cụ:** VS Code, Git/GitHub
-* **Frontend: HTML, CSS, Javascript (React Tailwind)
-* **Backend: Python (FastAPI)
-* **Database: PostgreSQL
+* **Frontend**: HTML, CSS, Javascript (React Tailwind)
+* **Backend**: Python (FastAPI)
+* **Database**: PostgreSQL
 
 ## CHỨC NĂNG HỆ THỐNG
 <a name="chucnang"></a>
-1	Lập phiếu bán hàng	
-2	Lập phiếu mua hàng	
-3	Lập phiếu dịch vụ	
-4	Tra cứu phiếu dịch vụ		
-5	Lập báo cáo tồn kho
+*1	Lập phiếu bán hàng	
+*2	Lập phiếu mua hàng	
+*3	Lập phiếu dịch vụ	
+*4	Tra cứu phiếu dịch vụ		
+*5	Lập báo cáo tồn kho
 
 
 ## CÀI ĐẶT VÀ TRIỂN KHAI
