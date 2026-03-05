@@ -13,13 +13,48 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
         servicesCount: 0,
         customersCount: 0,
         salesTotal: 0,
+        trendPeriodDays: 30,
+        trends: {
+            salesTotal: null,
+            salesCount: null,
+            servicesCount: null,
+            customersCount: null,
+        },
     });
     const [employees, setEmployees] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
     const [salesInvoices, setSalesInvoices] = useState([]);
     const [serviceInvoices, setServiceInvoices] = useState([]);
+    const [revenueSeries, setRevenueSeries] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    const buildRevenueSeries = (salesData, days = 14) => {
+        const dailyTotals = new Map();
+
+        salesData.forEach((inv) => {
+            if (!inv?.invoicedate) return;
+            const dateKey = inv.invoicedate;
+            const amount = Number(inv.totalamount || 0);
+            dailyTotals.set(dateKey, (dailyTotals.get(dateKey) || 0) + amount);
+        });
+
+        const result = [];
+        const today = new Date();
+
+        for (let i = days - 1; i >= 0; i -= 1) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            const dateKey = d.toISOString().slice(0, 10);
+            result.push({
+                dateKey,
+                label: d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
+                value: dailyTotals.get(dateKey) || 0,
+            });
+        }
+
+        return result;
+    };
 
     // Hàm fetch dữ liệu từ backend
     const fetchData = async () => {
@@ -33,20 +68,29 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
             };
 
             // Lấy stats
-            const [salesResponse, servicesResponse, customersResponse] = await Promise.all([
+            const [salesResponse, servicesResponse, customersResponse, trendsResponse] = await Promise.all([
                 fetch(`${API_URL}/invoices/sales`, { headers }),
                 fetch(`${API_URL}/invoices/services/count`, { headers }),
                 fetch(`${API_URL}/customers/count`, { headers }),
+                fetch(`${API_URL}/invoices/overview/trends?days=30`, { headers }),
             ]);
 
             let salesData = [];
             let servicesCount = 0;
             let customersCount = 0;
             let totalSales = 0;
+            let trends = {
+                salesTotal: null,
+                salesCount: null,
+                servicesCount: null,
+                customersCount: null,
+            };
+            let trendPeriodDays = 30;
 
             if (salesResponse.ok) {
                 salesData = await salesResponse.json();
                 totalSales = salesData.reduce((sum, inv) => sum + (inv.totalamount || 0), 0);
+                setRevenueSeries(buildRevenueSeries(salesData, 14));
             }
 
             if (servicesResponse.ok) {
@@ -59,11 +103,24 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
                 customersCount = custData.count || 0;
             }
 
+            if (trendsResponse.ok) {
+                const trendData = await trendsResponse.json();
+                trendPeriodDays = trendData.period_days || 30;
+                trends = {
+                    salesTotal: trendData.sales_total?.change_percent ?? null,
+                    salesCount: trendData.sales_count?.change_percent ?? null,
+                    servicesCount: trendData.services_count?.change_percent ?? null,
+                    customersCount: trendData.customers_count?.change_percent ?? null,
+                };
+            }
+
             setStats({
                 salesCount: salesData.length,
                 servicesCount: servicesCount,
                 customersCount: customersCount,
                 salesTotal: totalSales,
+                trendPeriodDays,
+                trends,
             });
 
             // Lấy dữ liệu theo tab
@@ -134,6 +191,29 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"></path></svg>
         )}
     ];
+
+    const formatTrendLabel = (trend) => {
+        if (trend === null || trend === undefined) return "N/A";
+        if (trend === 0) return "0%";
+        return `${trend > 0 ? "+" : ""}${trend}%`;
+    };
+
+    const getTrendBadgeClass = (trend) => {
+        if (trend === null || trend === undefined) {
+            return "bg-stone-100 text-stone-500";
+        }
+        if (trend >= 0) {
+            return "bg-emerald-50 text-emerald-700";
+        }
+        return "bg-red-50 text-red-700";
+    };
+
+    const maxRevenueValue = Math.max(...revenueSeries.map((p) => p.value), 0);
+    const chartPoints = revenueSeries.map((point, index) => {
+        const x = revenueSeries.length > 1 ? (index / (revenueSeries.length - 1)) * 100 : 50;
+        const y = maxRevenueValue > 0 ? 100 - (point.value / maxRevenueValue) * 100 : 100;
+        return `${x},${y}`;
+    }).join(" ");
 
     return (
         <div className="flex h-screen bg-stone-50 font-sans overflow-hidden">
@@ -225,23 +305,55 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
                             {/* Thống kê nhanh */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {[
-                                    { title: "Tổng doanh thu bán", value: `${(stats.salesTotal / 1000000).toFixed(1)}M`, color: "text-green-600", bg: "bg-green-50" },
-                                    { title: "Đơn hàng bán", value: stats.salesCount, color: "text-amber-600", bg: "bg-amber-50" },
-                                    { title: "Phiếu dịch vụ", value: stats.servicesCount, color: "text-blue-600", bg: "bg-blue-50" },
-                                    { title: "Khách hàng", value: stats.customersCount, color: "text-purple-600", bg: "bg-purple-50" },
+                                    { title: "Tổng doanh thu bán", value: `${(stats.salesTotal / 1000000).toFixed(1)}M`, trend: stats.trends.salesTotal },
+                                    { title: "Đơn hàng bán", value: stats.salesCount, trend: stats.trends.salesCount },
+                                    { title: "Phiếu dịch vụ", value: stats.servicesCount, trend: stats.trends.servicesCount },
+                                    { title: "Khách hàng", value: stats.customersCount, trend: stats.trends.customersCount },
                                 ].map((stat, idx) => (
                                     <div key={idx} className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm">
                                         <h3 className="text-stone-500 text-sm font-medium mb-2">{stat.title}</h3>
                                         <div className="flex items-end justify-between">
                                             <span className="text-2xl font-bold text-stone-800">{loading && activeTab === "overview" ? "..." : stat.value}</span>
-                                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-lg ${stat.bg} ${stat.color}`}>+12%</span>
+                                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-lg ${getTrendBadgeClass(stat.trend)}`}>
+                                                {loading && activeTab === "overview" ? "..." : formatTrendLabel(stat.trend)}
+                                            </span>
                                         </div>
+                                        <p className="mt-2 text-xs text-stone-400">So với {stats.trendPeriodDays} ngày trước</p>
                                     </div>
                                 ))}
                             </div>
 
-                            <div className="bg-white p-8 rounded-2xl border border-stone-100 shadow-sm flex items-center justify-center min-h-[300px]">
-                                <p className="text-stone-400">Biểu đồ doanh thu sẽ hiển thị ở đây</p>
+                            <div className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm min-h-[300px]">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-stone-700 font-semibold">Doanh thu 14 ngày gần nhất</h3>
+                                    <span className="text-xs text-stone-400">Đơn vị: VND</span>
+                                </div>
+
+                                {loading && activeTab === "overview" ? (
+                                    <div className="h-56 flex items-center justify-center text-stone-400">Đang tải biểu đồ...</div>
+                                ) : revenueSeries.length === 0 ? (
+                                    <div className="h-56 flex items-center justify-center text-stone-400">Không có dữ liệu doanh thu</div>
+                                ) : (
+                                    <>
+                                        <div className="h-56 w-full">
+                                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+                                                <polyline
+                                                    fill="none"
+                                                    stroke="#f59e0b"
+                                                    strokeWidth="2.2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    points={chartPoints}
+                                                />
+                                            </svg>
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-7 gap-2 text-[11px] text-stone-400">
+                                            {revenueSeries.filter((_, idx) => idx % 2 === 0).map((p) => (
+                                                <span key={p.dateKey} className="truncate">{p.label}</span>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     ) : activeTab === "employees" ? (
