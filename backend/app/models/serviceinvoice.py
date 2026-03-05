@@ -9,7 +9,7 @@ class ServiceInvoice(Base):
     serviceinvoiceid = Column(Integer, primary_key=True)
     createddate = Column(Date)
 
-    customerid = Column(Integer, ForeignKey("customer.customerid"), nullable=False)
+    customerid = Column(Integer, ForeignKey("customer.customerid"))
 
     totalamount = Column(Numeric)
     totalpaid = Column(Numeric)
@@ -18,4 +18,4 @@ class ServiceInvoice(Base):
     status = Column(String)
 
     customer = relationship("Customer", back_populates="serviceinvoices")
-    details = relationship("ServiceInvoiceDetail", back_populates="invoice", cascade="all, delete-orphan")
+    details = relationship("ServiceInvoiceDetail", back_populates="invoice")

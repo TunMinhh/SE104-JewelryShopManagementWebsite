@@ -21,7 +21,6 @@ class ServiceInvoiceDetail(Base):
     remainingamount = Column(Numeric)
 
     deliverydate = Column(Date)
-    status = Column(String)
 
     invoice = relationship("ServiceInvoice", back_populates="details")
     servicetype = relationship("ServiceType", back_populates="invoice_details")
