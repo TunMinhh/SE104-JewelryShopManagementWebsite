@@ -35,22 +35,23 @@
 <a name="doan"></a>
 **Tên đề tài: Web quản lý cửa hàng vàng bạc đá quý** 
 
-**Mô tả:**
-
 ## CÔNG NGHỆ SỬ DỤNG
 <a name="congnghe"></a>
 * **Công cụ:** VS Code, Git/GitHub
-* **Frontend**: HTML, CSS, Javascript (React Tailwind)
+* **Frontend**: HTML, CSS, Javascript (React/Tailwind)
 * **Backend**: Python (FastAPI)
-* **Database**: PostgreSQL
+* **Database**: PostgreSQL (Supabase)
 
 ## CHỨC NĂNG HỆ THỐNG
 <a name="chucnang"></a>
-* 1	Lập phiếu bán hàng	
-* 2	Lập phiếu mua hàng	
-* 3	Lập phiếu dịch vụ	
-* 4	Tra cứu phiếu dịch vụ		
-* 5	Lập báo cáo tồn kho
+* Lập phiếu bán hàng	
+* Lập phiếu mua hàng	
+* Lập phiếu dịch vụ	
+* Tra cứu phiếu dịch vụ		
+* Lập báo cáo tồn kho
+* Quản lý kho
+* Quản lý nhân viên
+* Quản lý khách hàng
 
 
 ## CÀI ĐẶT VÀ TRIỂN KHAI
