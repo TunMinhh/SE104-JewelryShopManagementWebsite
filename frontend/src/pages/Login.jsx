@@ -60,7 +60,7 @@ function Login({ onLoginSuccess }) {
                 <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/60 to-transparent"></div>
                 
                 <div className="relative z-10 text-center px-12">
-                    <h2 className="text-4xl font-serif text-amber-400 mb-4 tracking-wide">Jewelry System</h2>
+                    <h2 className="text-4xl font-serif text-amber-400 mb-4 tracking-wide">Mixi Jewelry</h2>
                     <p className="text-stone-300 text-lg max-w-md mx-auto leading-relaxed">
                         Hệ thống quản lý cửa hàng trang sức cao cấp. Tối ưu hóa quy trình, nâng tầm dịch vụ.
                     </p>

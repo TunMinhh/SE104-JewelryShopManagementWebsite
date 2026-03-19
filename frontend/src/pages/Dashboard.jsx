@@ -228,7 +228,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
             {/* Sidebar */}
             <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-72 bg-stone-900 text-stone-300 transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} flex flex-col`}>
                 <div className="flex items-center justify-center h-20 border-b border-stone-800">
-                    <h1 className="text-2xl font-serif text-amber-400 tracking-wider">JEWELRY PRO</h1>
+                    <h1 className="text-2xl font-serif text-amber-400 tracking-wider">MIXI JEWELRY</h1>
                 </div>
 
                 <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">

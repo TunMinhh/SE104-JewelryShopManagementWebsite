@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import engine
 from app.models.customer import Customer
@@ -42,8 +43,11 @@ app.include_router(invoices_router, prefix="/invoices", tags=["invoices"])
 
 @app.get("/test-db-connection")
 def test_db_connection():
-    inspector = inspect(engine)
-    tables = inspector.get_table_names()
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=503, detail=f"Database connection failed: {exc}") from exc
 
     return {
         "status": "connected",
