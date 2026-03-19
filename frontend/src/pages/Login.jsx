@@ -1,6 +1,5 @@
 import { useState } from "react";
-
-const API_URL = "http://127.0.0.1:8000";
+import { buildApiUrl } from "../lib/api";
 
 function Login({ onLoginSuccess }) {
     const [username, setUsername] = useState("");
@@ -16,7 +15,7 @@ function Login({ onLoginSuccess }) {
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         try {
-            const response = await fetch(`${API_URL}/auth/login`, {
+            const response = await fetch(buildApiUrl("/auth/login"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -38,6 +37,8 @@ function Login({ onLoginSuccess }) {
         } catch (err) {
             if (err.name === "AbortError") {
                 setError("Hệ thống phản hồi quá chậm. Vui lòng thử lại.");
+            } else if (err instanceof TypeError) {
+                setError("Khong the ket noi toi may chu. Kiem tra backend dang chay va thu lai.");
             } else {
                 setError(err.message || "Có lỗi xảy ra");
             }

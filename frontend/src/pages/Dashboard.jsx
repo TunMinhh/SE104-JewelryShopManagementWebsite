@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-
-const API_URL = "http://127.0.0.1:8000";
+import { buildApiUrl } from "../lib/api";
 
 function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
     // State quản lý tab đang được chọn
@@ -69,10 +68,10 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
 
             // Lấy stats
             const [salesResponse, servicesResponse, customersResponse, trendsResponse] = await Promise.all([
-                fetch(`${API_URL}/invoices/sales`, { headers }),
-                fetch(`${API_URL}/invoices/services/count`, { headers }),
-                fetch(`${API_URL}/customers/count`, { headers }),
-                fetch(`${API_URL}/invoices/overview/trends?days=30`, { headers }),
+                fetch(buildApiUrl("/invoices/sales"), { headers }),
+                fetch(buildApiUrl("/invoices/services/count"), { headers }),
+                fetch(buildApiUrl("/customers/count"), { headers }),
+                fetch(buildApiUrl("/invoices/overview/trends?days=30"), { headers }),
             ]);
 
             let salesData = [];
@@ -125,32 +124,32 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
 
             // Lấy dữ liệu theo tab
             if (activeTab === "employees") {
-                const empResponse = await fetch(`${API_URL}/employees`, { headers });
+                const empResponse = await fetch(buildApiUrl("/employees"), { headers });
                 if (empResponse.ok) {
                     setEmployees(await empResponse.json());
                 }
             } else if (activeTab === "customers") {
-                const custResponse = await fetch(`${API_URL}/customers`, { headers });
+                const custResponse = await fetch(buildApiUrl("/customers"), { headers });
                 if (custResponse.ok) {
                     setCustomers(await custResponse.json());
                 }
             } else if (activeTab === "inventory") {
-                const prodResponse = await fetch(`${API_URL}/products`, { headers });
+                const prodResponse = await fetch(buildApiUrl("/products"), { headers });
                 if (prodResponse.ok) {
                     setProducts(await prodResponse.json());
                 }
             } else if (activeTab === "purchases") {
-                const purchResponse = await fetch(`${API_URL}/invoices/purchases`, { headers });
+                const purchResponse = await fetch(buildApiUrl("/invoices/purchases"), { headers });
                 if (purchResponse.ok) {
                     // setSalesInvoices(await purchResponse.json());
                 }
             } else if (activeTab === "sales") {
-                const salesResponse = await fetch(`${API_URL}/invoices/sales`, { headers });
+                const salesResponse = await fetch(buildApiUrl("/invoices/sales"), { headers });
                 if (salesResponse.ok) {
                     setSalesInvoices(await salesResponse.json());
                 }
             } else if (activeTab === "services") {
-                const svcResponse = await fetch(`${API_URL}/invoices/services`, { headers });
+                const svcResponse = await fetch(buildApiUrl("/invoices/services"), { headers });
                 if (svcResponse.ok) {
                     setServiceInvoices(await svcResponse.json());
                 }

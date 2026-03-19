@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import { buildApiUrl } from "./lib/api";
 
 function App() {
   const [status, setStatus] = useState(null);
@@ -12,7 +13,7 @@ function App() {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/auth/me", {
+      const res = await fetch(buildApiUrl("/auth/me"), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
