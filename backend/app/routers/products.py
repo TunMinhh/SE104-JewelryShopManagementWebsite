@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.auth import decode_access_token
 from app.database import SessionLocal
@@ -42,16 +42,22 @@ def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(sec
     return employee
 
 
-@router.get("/")
+@router.get("")
+@router.get("/", include_in_schema=False)
 def list_products(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
-    products = db.query(Product).all()
+    products = db.query(Product).options(joinedload(Product.category)).all()
     return [
         {
             "productid": p.productid,
             "productname": p.productname,
             "categoryid": p.productcategoryid,
+            "categoryname": p.category.categoryname if p.category else None,
             "purchaseprice": float(p.purchaseprice) if p.purchaseprice else 0,
+            "unitofmeasure": p.unitofmeasure,
             "description": p.description,
+            "recommendedprice": float(
+                p.purchaseprice * (1 + (((p.category.profitpercentage if p.category else 0) or 0) / 100))
+            ) if p.purchaseprice else 0,
         }
         for p in products
     ]
@@ -59,7 +65,7 @@ def list_products(db: Session = Depends(get_db), current_employee: Employee = De
 
 @router.get("/{product_id}")
 def get_product(product_id: int, db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
-    product = db.query(Product).filter(Product.productid == product_id).first()
+    product = db.query(Product).options(joinedload(Product.category)).filter(Product.productid == product_id).first()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -69,9 +75,11 @@ def get_product(product_id: int, db: Session = Depends(get_db), current_employee
         "productid": product.productid,
         "productname": product.productname,
         "categoryid": product.productcategoryid,
+        "categoryname": product.category.categoryname if product.category else None,
         "purchaseprice": float(product.purchaseprice) if product.purchaseprice else 0,
+        "unitofmeasure": product.unitofmeasure,
         "description": product.description,
-        "categoryid": product.categoryid,
-        "quantity": product.quantity,
-        "price": float(product.price) if product.price else 0,
+        "recommendedprice": float(
+            product.purchaseprice * (1 + (((product.category.profitpercentage if product.category else 0) or 0) / 100))
+        ) if product.purchaseprice else 0,
     }

@@ -41,7 +41,8 @@ def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(sec
     return employee
 
 
-@router.get("/")
+@router.get("")
+@router.get("/", include_in_schema=False)
 def list_employees(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     employees = db.query(Employee).all()
     return [

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { buildApiUrl } from "../lib/api";
+import SalesInvoicesPage from "./SalesInvoicesPage";
 
-function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
+function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, token }) {
     // State quản lý tab đang được chọn
     const [activeTab, setActiveTab] = useState("overview");
     // State quản lý đóng/mở sidebar trên mobile
@@ -23,10 +24,14 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
     const [employees, setEmployees] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
-    const [salesInvoices, setSalesInvoices] = useState([]);
     const [serviceInvoices, setServiceInvoices] = useState([]);
     const [revenueSeries, setRevenueSeries] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
+
+    const handleUnauthorized = () => {
+        setErrorMessage("Máy chủ từ chối yêu cầu ở màn hình này. Phiên đăng nhập vẫn được giữ để bạn có thể thử lại.");
+    };
 
     const buildRevenueSeries = (salesData, days = 14) => {
         const dailyTotals = new Map();
@@ -60,6 +65,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
         if (!token) return;
         
         setLoading(true);
+        setErrorMessage("");
         try {
             const headers = {
                 "Authorization": `Bearer ${token}`,
@@ -85,6 +91,12 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
                 customersCount: null,
             };
             let trendPeriodDays = 30;
+
+            const responses = [salesResponse, servicesResponse, customersResponse, trendsResponse];
+            if (responses.some((response) => response.status === 401)) {
+                handleUnauthorized();
+                return;
+            }
 
             if (salesResponse.ok) {
                 salesData = await salesResponse.json();
@@ -125,37 +137,53 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
             // Lấy dữ liệu theo tab
             if (activeTab === "employees") {
                 const empResponse = await fetch(buildApiUrl("/employees"), { headers });
+                if (empResponse.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 if (empResponse.ok) {
                     setEmployees(await empResponse.json());
                 }
             } else if (activeTab === "customers") {
                 const custResponse = await fetch(buildApiUrl("/customers"), { headers });
+                if (custResponse.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 if (custResponse.ok) {
                     setCustomers(await custResponse.json());
                 }
             } else if (activeTab === "inventory") {
                 const prodResponse = await fetch(buildApiUrl("/products"), { headers });
+                if (prodResponse.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 if (prodResponse.ok) {
                     setProducts(await prodResponse.json());
                 }
             } else if (activeTab === "purchases") {
                 const purchResponse = await fetch(buildApiUrl("/invoices/purchases"), { headers });
+                if (purchResponse.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 if (purchResponse.ok) {
                     // setSalesInvoices(await purchResponse.json());
                 }
-            } else if (activeTab === "sales") {
-                const salesResponse = await fetch(buildApiUrl("/invoices/sales"), { headers });
-                if (salesResponse.ok) {
-                    setSalesInvoices(await salesResponse.json());
-                }
             } else if (activeTab === "services") {
                 const svcResponse = await fetch(buildApiUrl("/invoices/services"), { headers });
+                if (svcResponse.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 if (svcResponse.ok) {
                     setServiceInvoices(await svcResponse.json());
                 }
             }
         } catch (error) {
             console.error("Error fetching data:", error);
+            setErrorMessage("Không thể tải dữ liệu từ máy chủ.");
         } finally {
             setLoading(false);
         }
@@ -299,6 +327,11 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
 
                 {/* Dashboard Body / Content */}
                 <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+                    {errorMessage ? (
+                        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {errorMessage}
+                        </div>
+                    ) : null}
                     {activeTab === "overview" ? (
                         <div className="space-y-6">
                             {/* Thống kê nhanh */}
@@ -447,36 +480,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, token }) {
                             </div>
                         </div>
                     ) : activeTab === "sales" ? (
-                        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-stone-50 border-b border-stone-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Khách hàng ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Ngày</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tổng tiền</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-stone-200">
-                                        {loading ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Đang tải...</td></tr>
-                                        ) : salesInvoices.length === 0 ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Không có dữ liệu</td></tr>
-                                        ) : (
-                                            salesInvoices.map((inv) => (
-                                                <tr key={inv.invoiceid} className="hover:bg-stone-50">
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{inv.invoiceid}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{inv.customerid}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{new Date(inv.invoicedate).toLocaleDateString("vi-VN")}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{(inv.totalamount || 0).toLocaleString("vi-VN")}đ</td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <SalesInvoicesPage token={token} />
                     ) : activeTab === "services" ? (
                         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">

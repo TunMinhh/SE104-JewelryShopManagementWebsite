@@ -43,7 +43,8 @@ def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(sec
     return employee
 
 
-@router.get("/")
+@router.get("")
+@router.get("/", include_in_schema=False)
 def list_customers(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     customers = db.query(Customer).all()
     return [
