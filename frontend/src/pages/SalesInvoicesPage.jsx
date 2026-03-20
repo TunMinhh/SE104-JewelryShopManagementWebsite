@@ -13,6 +13,11 @@ const emptyForm = () => ({
     items: [emptyLineItem()],
 });
 
+const emptyNewCustomer = () => ({
+    customername: "",
+    phonenumber: "",
+});
+
 function formatCurrency(value) {
     return Number(value || 0).toLocaleString("vi-VN");
 }
@@ -39,6 +44,8 @@ function SalesInvoicesPage({ token }) {
     const [selectedInvoice, setSelectedInvoice] = useState(null);
     const [editingInvoiceId, setEditingInvoiceId] = useState(null);
     const [form, setForm] = useState(emptyForm);
+    const [customerMode, setCustomerMode] = useState("existing");
+    const [newCustomer, setNewCustomer] = useState(emptyNewCustomer);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
@@ -187,6 +194,8 @@ function SalesInvoicesPage({ token }) {
         setEditingInvoiceId(null);
         setSelectedInvoice(null);
         setForm(emptyForm());
+        setCustomerMode("existing");
+        setNewCustomer(emptyNewCustomer());
         setErrorMessage("");
         setView("create");
     };
@@ -221,6 +230,8 @@ function SalesInvoicesPage({ token }) {
                     sellingprice: String(detail.sellingprice),
                 })),
             });
+            setCustomerMode("existing");
+            setNewCustomer(emptyNewCustomer());
             setView("edit");
         } catch (error) {
             setErrorMessage(error.message || "Không thể tải phiếu bán để chỉnh sửa");
@@ -292,6 +303,20 @@ function SalesInvoicesPage({ token }) {
         setForm((current) => ({ ...current, [field]: value }));
     };
 
+    const updateNewCustomerField = (field, value) => {
+        setNewCustomer((current) => ({ ...current, [field]: value }));
+    };
+
+    const upsertCustomer = (customer) => {
+        setCustomers((current) => {
+            const hasCustomer = current.some((item) => String(item.customerid) === String(customer.customerid));
+            if (hasCustomer) {
+                return current.map((item) => (String(item.customerid) === String(customer.customerid) ? customer : item));
+            }
+            return [...current, customer];
+        });
+    };
+
     const updateLineItem = (index, field, value) => {
         setForm((current) => {
             const nextItems = current.items.map((item, itemIndex) => {
@@ -346,6 +371,8 @@ function SalesInvoicesPage({ token }) {
         setEditingInvoiceId(null);
         setSelectedInvoice(null);
         setForm(emptyForm());
+        setCustomerMode("existing");
+        setNewCustomer(emptyNewCustomer());
         setErrorMessage("");
         setLoading(true);
         try {
@@ -361,7 +388,12 @@ function SalesInvoicesPage({ token }) {
         event.preventDefault();
         setErrorMessage("");
 
-        if (!form.customerid) {
+        if (view === "create" && customerMode === "new") {
+            if (!newCustomer.customername.trim()) {
+                setErrorMessage("Vui lòng nhập tên khách hàng mới");
+                return;
+            }
+        } else if (!form.customerid) {
             setErrorMessage("Vui lòng chọn khách hàng");
             return;
         }
@@ -396,8 +428,26 @@ function SalesInvoicesPage({ token }) {
 
         setSubmitting(true);
         try {
+            let customerId = Number(form.customerid);
+
+            if (view === "create" && customerMode === "new") {
+                const createdCustomer = await fetchJson("/customers", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        customername: newCustomer.customername.trim(),
+                        phonenumber: newCustomer.phonenumber.trim(),
+                    }),
+                });
+
+                upsertCustomer(createdCustomer);
+                customerId = Number(createdCustomer.customerid);
+                setForm((current) => ({ ...current, customerid: String(createdCustomer.customerid) }));
+                setCustomerMode("existing");
+                setNewCustomer(emptyNewCustomer());
+            }
+
             const payload = {
-                customerid: Number(form.customerid),
+                customerid: customerId,
                 createddate: form.createddate,
                 items: form.items.map((item) => ({
                     productid: Number(item.productid),
@@ -499,21 +549,67 @@ function SalesInvoicesPage({ token }) {
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2">
-                    <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                        <span className="text-sm font-medium text-stone-700">Khách hàng</span>
-                        <select
-                            value={form.customerid}
-                            onChange={(event) => updateFormField("customerid", event.target.value)}
-                            className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
-                        >
-                            <option value="">Chọn khách hàng</option>
-                            {customers.map((customer) => (
-                                <option key={customer.customerid} value={customer.customerid}>
-                                    {customer.customername} - {customer.phonenumber || "Không có SĐT"}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-stone-700">Khách hàng</span>
+                            {view === "create" ? (
+                                <div className="inline-flex rounded-xl bg-stone-100 p-1 text-xs font-medium text-stone-600">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCustomerMode("existing")}
+                                        className={`rounded-lg px-3 py-2 transition ${customerMode === "existing" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}
+                                    >
+                                        Chọn sẵn
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCustomerMode("new")}
+                                        className={`rounded-lg px-3 py-2 transition ${customerMode === "new" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"}`}
+                                    >
+                                        Nhập khách mới
+                                    </button>
+                                </div>
+                            ) : null}
+                        </div>
+
+                        {view === "create" && customerMode === "new" ? (
+                            <div className="mt-3 grid gap-3">
+                                <input
+                                    type="text"
+                                    value={newCustomer.customername}
+                                    onChange={(event) => updateNewCustomerField("customername", event.target.value)}
+                                    placeholder="Tên khách hàng mới"
+                                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                                />
+                                <input
+                                    type="text"
+                                    value={newCustomer.phonenumber}
+                                    onChange={(event) => updateNewCustomerField("phonenumber", event.target.value)}
+                                    placeholder="Số điện thoại (không bắt buộc)"
+                                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                                />
+                                <p className="text-xs text-stone-500">Khách hàng sẽ được tạo tự động khi lưu phiếu bán.</p>
+                            </div>
+                        ) : (
+                            <>
+                                <select
+                                    value={form.customerid}
+                                    onChange={(event) => updateFormField("customerid", event.target.value)}
+                                    className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                                >
+                                    <option value="">Chọn khách hàng</option>
+                                    {customers.map((customer) => (
+                                        <option key={customer.customerid} value={customer.customerid}>
+                                            {customer.customername} - {customer.phonenumber || "Không có SĐT"}
+                                        </option>
+                                    ))}
+                                </select>
+                                {view === "create" ? (
+                                    <p className="mt-3 text-xs text-stone-500">Nếu khách chưa có trong hệ thống, chuyển sang tab Nhập khách mới.</p>
+                                ) : null}
+                            </>
+                        )}
+                    </div>
 
                     <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                         <span className="text-sm font-medium text-stone-700">Ngày lập</span>

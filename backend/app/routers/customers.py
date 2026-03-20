@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -10,6 +11,11 @@ from app.models.employee import Employee
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
+
+
+class CustomerPayload(BaseModel):
+    customername: str
+    phonenumber: str | None = None
 
 
 def get_db():
@@ -43,18 +49,53 @@ def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(sec
     return employee
 
 
+def _serialize_customer(customer: Customer):
+    return {
+        "customerid": customer.customerid,
+        "customername": customer.customername,
+        "phonenumber": customer.phonenumber,
+    }
+
+
 @router.get("")
 @router.get("/", include_in_schema=False)
 def list_customers(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     customers = db.query(Customer).all()
-    return [
-        {
-            "customerid": c.customerid,
-            "customername": c.customername,
-            "phonenumber": c.phonenumber,
-        }
-        for c in customers
-    ]
+    return [_serialize_customer(customer) for customer in customers]
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("/", include_in_schema=False, status_code=status.HTTP_201_CREATED)
+def create_customer(
+    payload: CustomerPayload,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee),
+):
+    customer_name = payload.customername.strip()
+    phone_number = payload.phonenumber.strip() if payload.phonenumber else None
+
+    if not customer_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Customer name is required",
+        )
+
+    if phone_number:
+        existing_customer = db.query(Customer).filter(Customer.phonenumber == phone_number).first()
+        if existing_customer:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Phone number already belongs to an existing customer",
+            )
+
+    customer = Customer(
+        customername=customer_name,
+        phonenumber=phone_number,
+    )
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+    return _serialize_customer(customer)
 
 
 @router.get("/count")
@@ -71,8 +112,4 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), current_employ
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Customer not found",
         )
-    return {
-        "customerid": customer.customerid,
-        "customername": customer.customername,
-        "phonenumber": customer.phonenumber,
-    }
+    return _serialize_customer(customer)
