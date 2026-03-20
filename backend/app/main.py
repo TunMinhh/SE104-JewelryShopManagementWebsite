@@ -26,6 +26,7 @@ from app.routers.suppliers import router as suppliers_router
 from app.routers.sales_invoices import router as sales_invoices_router
 from app.routers.purchase_invoices import router as purchase_invoices_router
 from app.routers.service_invoices import router as service_invoices_router
+from app.routers.service_types import router as service_types_router
 from app.routers.dashboard import router as dashboard_router
 
 app = FastAPI()
@@ -47,6 +48,7 @@ app.include_router(products_router, prefix="/products", tags=["products"])
 app.include_router(suppliers_router, prefix="/suppliers", tags=["suppliers"])
 app.include_router(sales_invoices_router, prefix="/invoices", tags=["sales-invoices"])
 app.include_router(purchase_invoices_router, prefix="/invoices", tags=["purchase-invoices"])
+app.include_router(service_types_router, prefix="/service-types", tags=["service-types"])
 app.include_router(service_invoices_router, prefix="/service-invoices", tags=["service-invoices"])
 app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
 

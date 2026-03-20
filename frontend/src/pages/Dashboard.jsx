@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { buildApiUrl } from "../lib/api";
 import SalesInvoicesPage from "./SalesInvoicesPage";
 import PurchaseInvoicesPage from "./PurchaseInvoicesPage";
+import ServiceInvoicesPage from "./ServiceInvoicesPage";
 
 function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, token }) {
     // State quản lý tab đang được chọn
@@ -25,7 +26,6 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
     const [employees, setEmployees] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
-    const [serviceInvoices, setServiceInvoices] = useState([]);
     const [recentOrders, setRecentOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
@@ -158,15 +158,6 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                 }
                 if (prodResponse.ok) {
                     setProducts(await prodResponse.json());
-                }
-            } else if (activeTab === "services") {
-                const svcResponse = await fetch(buildApiUrl("/service-invoices"), { headers });
-                if (svcResponse.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
-                if (svcResponse.ok) {
-                    setServiceInvoices(await svcResponse.json());
                 }
             }
         } catch (error) {
@@ -470,36 +461,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                     ) : activeTab === "purchases" ? (
                         <PurchaseInvoicesPage token={token} />
                     ) : activeTab === "services" ? (
-                        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-stone-50 border-b border-stone-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Khách hàng ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Ngày</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tổng tiền</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-stone-200">
-                                        {loading ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Đang tải...</td></tr>
-                                        ) : serviceInvoices.length === 0 ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Không có dữ liệu</td></tr>
-                                        ) : (
-                                            serviceInvoices.map((inv) => (
-                                                <tr key={inv.invoiceid} className="hover:bg-stone-50">
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{inv.invoiceid}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{inv.customerid}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{new Date(inv.invoicedate).toLocaleDateString("vi-VN")}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{(inv.totalamount || 0).toLocaleString("vi-VN")}đ</td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <ServiceInvoicesPage token={token} />
                     ) : (
                         // Placeholder cho tab khác (purchases)
                         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm h-full min-h-[500px] flex flex-col items-center justify-center text-stone-400">
