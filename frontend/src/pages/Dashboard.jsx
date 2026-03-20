@@ -26,7 +26,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
     const [serviceInvoices, setServiceInvoices] = useState([]);
-    const [revenueSeries, setRevenueSeries] = useState([]);
+    const [recentOrders, setRecentOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
 
@@ -34,31 +34,27 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
         setErrorMessage("Máy chủ từ chối yêu cầu ở màn hình này. Phiên đăng nhập vẫn được giữ để bạn có thể thử lại.");
     };
 
-    const buildRevenueSeries = (salesData, days = 14) => {
-        const dailyTotals = new Map();
-
-        salesData.forEach((inv) => {
-            if (!inv?.invoicedate) return;
-            const dateKey = inv.invoicedate;
-            const amount = Number(inv.totalamount || 0);
-            dailyTotals.set(dateKey, (dailyTotals.get(dateKey) || 0) + amount);
-        });
-
-        const result = [];
+    const buildRecentOrders = (salesData, days = 7) => {
         const today = new Date();
+        const startDate = new Date(today);
+        startDate.setHours(0, 0, 0, 0);
+        startDate.setDate(startDate.getDate() - (days - 1));
 
-        for (let i = days - 1; i >= 0; i -= 1) {
-            const d = new Date(today);
-            d.setDate(today.getDate() - i);
-            const dateKey = d.toISOString().slice(0, 10);
-            result.push({
-                dateKey,
-                label: d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
-                value: dailyTotals.get(dateKey) || 0,
+        return salesData
+            .filter((invoice) => {
+                if (!invoice?.invoicedate) return false;
+                const invoiceDate = new Date(invoice.invoicedate);
+                invoiceDate.setHours(0, 0, 0, 0);
+                return invoiceDate >= startDate && invoiceDate <= today;
+            })
+            .sort((left, right) => {
+                const leftTime = new Date(left.invoicedate).getTime();
+                const rightTime = new Date(right.invoicedate).getTime();
+                if (rightTime !== leftTime) {
+                    return rightTime - leftTime;
+                }
+                return Number(right.invoiceid || 0) - Number(left.invoiceid || 0);
             });
-        }
-
-        return result;
     };
 
     // Hàm fetch dữ liệu từ backend
@@ -102,7 +98,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
             if (salesResponse.ok) {
                 salesData = await salesResponse.json();
                 totalSales = salesData.reduce((sum, inv) => sum + (inv.totalamount || 0), 0);
-                setRevenueSeries(buildRevenueSeries(salesData, 14));
+                setRecentOrders(buildRecentOrders(salesData, 7));
             }
 
             if (servicesResponse.ok) {
@@ -227,13 +223,6 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
         return "bg-red-50 text-red-700";
     };
 
-    const maxRevenueValue = Math.max(...revenueSeries.map((p) => p.value), 0);
-    const chartPoints = revenueSeries.map((point, index) => {
-        const x = revenueSeries.length > 1 ? (index / (revenueSeries.length - 1)) * 100 : 50;
-        const y = maxRevenueValue > 0 ? 100 - (point.value / maxRevenueValue) * 100 : 100;
-        return `${x},${y}`;
-    }).join(" ");
-
     return (
         <div className="flex h-screen bg-stone-50 font-sans overflow-hidden">
             {/* Overlay cho Mobile */}
@@ -349,34 +338,39 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
 
                             <div className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm min-h-[300px]">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-stone-700 font-semibold">Doanh thu 14 ngày gần nhất</h3>
-                                    <span className="text-xs text-stone-400">Đơn vị: VND</span>
+                                    <h3 className="text-stone-700 font-semibold">Danh sách đơn hàng 7 ngày gần nhất</h3>
+                                    <span className="text-xs text-stone-400">Sắp xếp mới nhất trước</span>
                                 </div>
 
                                 {loading && activeTab === "overview" ? (
-                                    <div className="h-56 flex items-center justify-center text-stone-400">Đang tải biểu đồ...</div>
-                                ) : revenueSeries.length === 0 ? (
-                                    <div className="h-56 flex items-center justify-center text-stone-400">Không có dữ liệu doanh thu</div>
+                                    <div className="h-56 flex items-center justify-center text-stone-400">Đang tải danh sách đơn hàng...</div>
+                                ) : recentOrders.length === 0 ? (
+                                    <div className="h-56 flex items-center justify-center text-stone-400">Không có đơn hàng nào trong 7 ngày gần nhất</div>
                                 ) : (
-                                    <>
-                                        <div className="h-56 w-full">
-                                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-                                                <polyline
-                                                    fill="none"
-                                                    stroke="#f59e0b"
-                                                    strokeWidth="2.2"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    points={chartPoints}
-                                                />
-                                            </svg>
-                                        </div>
-                                        <div className="mt-3 grid grid-cols-7 gap-2 text-[11px] text-stone-400">
-                                            {revenueSeries.filter((_, idx) => idx % 2 === 0).map((p) => (
-                                                <span key={p.dateKey} className="truncate">{p.label}</span>
-                                            ))}
-                                        </div>
-                                    </>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[720px]">
+                                            <thead className="border-b border-stone-200 text-left">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Mã đơn</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Khách hàng</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Ngày lập</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Số mặt hàng</th>
+                                                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-stone-500">Tổng tiền</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-stone-200">
+                                                {recentOrders.map((order) => (
+                                                    <tr key={order.invoiceid} className="hover:bg-stone-50">
+                                                        <td className="px-4 py-4 text-sm font-semibold text-stone-800">#{order.invoiceid}</td>
+                                                        <td className="px-4 py-4 text-sm text-stone-700">{order.customername || `KH ${order.customerid}`}</td>
+                                                        <td className="px-4 py-4 text-sm text-stone-600">{new Date(order.invoicedate).toLocaleDateString("vi-VN")}</td>
+                                                        <td className="px-4 py-4 text-sm text-stone-600">{order.itemcount}</td>
+                                                        <td className="px-4 py-4 text-right text-sm font-medium text-stone-800">{Number(order.totalamount || 0).toLocaleString("vi-VN")}đ</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 )}
                             </div>
                         </div>
