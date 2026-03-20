@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyForm = () => ({
     customername: "",
@@ -9,6 +10,8 @@ const emptyForm = () => ({
 function CustomersPage({ token }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [customers, setCustomers] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
     const [view, setView] = useState("list");
     const [editingCustomerId, setEditingCustomerId] = useState(null);
     const [form, setForm] = useState(emptyForm);
@@ -150,6 +153,23 @@ function CustomersPage({ token }) {
         }
     };
 
+    const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
+    const filteredCustomers = customers.filter((customer) => {
+        if (!normalizedSearchTerm) return true;
+
+        const haystacks = [
+            String(customer.customerid || ""),
+            customer.customername || "",
+            customer.phonenumber || "",
+        ];
+
+        return haystacks.some((value) => value.toLowerCase().includes(normalizedSearchTerm));
+    });
+
+    const clearFilters = () => {
+        setSearchTerm("");
+    };
+
     return (
         <div className="space-y-4">
             {errorMessage ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div> : null}
@@ -162,6 +182,23 @@ function CustomersPage({ token }) {
                             <p className="mt-1 text-sm text-stone-500">Tạo, chỉnh sửa và xóa thông tin khách hàng.</p>
                         </div>
                         <button type="button" onClick={openCreateView} className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400">Thêm khách hàng</button>
+                    </div>
+
+                    <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+                        <label className="block">
+                            <span className="text-sm font-medium text-stone-700">Tìm kiếm</span>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                                placeholder="Tìm theo ID, tên khách hàng hoặc số điện thoại"
+                                className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                            />
+                        </label>
+                        <div className="rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">
+                            Hiển thị {filteredCustomers.length}/{customers.length} khách hàng
+                        </div>
+                        <button type="button" onClick={clearFilters} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Xóa bộ lọc</button>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
@@ -178,9 +215,9 @@ function CustomersPage({ token }) {
                                 <tbody className="divide-y divide-stone-200">
                                     {loading ? (
                                         <tr><td colSpan="4" className="px-6 py-5 text-center text-stone-400">Đang tải...</td></tr>
-                                    ) : customers.length === 0 ? (
-                                        <tr><td colSpan="4" className="px-6 py-5 text-center text-stone-400">Chưa có khách hàng</td></tr>
-                                    ) : customers.map((customer) => (
+                                    ) : filteredCustomers.length === 0 ? (
+                                        <tr><td colSpan="4" className="px-6 py-5 text-center text-stone-400">Không có khách hàng phù hợp bộ lọc</td></tr>
+                                    ) : filteredCustomers.map((customer) => (
                                         <tr key={customer.customerid} className="hover:bg-stone-50">
                                             <td className="px-6 py-4 text-sm text-stone-800">{customer.customerid}</td>
                                             <td className="px-6 py-4 text-sm text-stone-800">{customer.customername}</td>

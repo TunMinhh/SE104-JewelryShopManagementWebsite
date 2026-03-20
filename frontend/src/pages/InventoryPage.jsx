@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyForm = () => ({
     productname: "",
@@ -17,6 +18,9 @@ function InventoryPage({ token }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
+    const [categoryFilter, setCategoryFilter] = useState("all");
     const [view, setView] = useState("list");
     const [editingProductId, setEditingProductId] = useState(null);
     const [form, setForm] = useState(emptyForm);
@@ -167,6 +171,25 @@ function InventoryPage({ token }) {
         }
     };
 
+    const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
+    const filteredProducts = products.filter((product) => {
+        const matchesSearch = !normalizedSearchTerm || [
+            String(product.productid || ""),
+            product.productname || "",
+            product.categoryname || "",
+            product.unitofmeasure || "",
+            product.description || "",
+        ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
+
+        const matchesCategory = categoryFilter === "all" || String(product.categoryid) === categoryFilter;
+        return matchesSearch && matchesCategory;
+    });
+
+    const clearFilters = () => {
+        setSearchTerm("");
+        setCategoryFilter("all");
+    };
+
     return (
         <div className="space-y-4">
             {errorMessage ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div> : null}
@@ -179,6 +202,34 @@ function InventoryPage({ token }) {
                             <p className="mt-1 text-sm text-stone-500">CRUD cơ bản cho sản phẩm đang có trong kho.</p>
                         </div>
                         <button type="button" onClick={openCreateView} className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400">Thêm sản phẩm</button>
+                    </div>
+
+                    <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_240px_auto_auto] md:items-end">
+                        <label className="block">
+                            <span className="text-sm font-medium text-stone-700">Tìm kiếm</span>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                                placeholder="Tìm theo ID, tên sản phẩm, danh mục, ĐVT hoặc mô tả"
+                                className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-medium text-stone-700">Lọc danh mục</span>
+                            <select
+                                value={categoryFilter}
+                                onChange={(event) => setCategoryFilter(event.target.value)}
+                                className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                            >
+                                <option value="all">Tất cả danh mục</option>
+                                {categories.map((category) => <option key={category.categoryid} value={category.categoryid}>{category.categoryname}</option>)}
+                            </select>
+                        </label>
+                        <div className="rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">
+                            Hiển thị {filteredProducts.length}/{products.length} sản phẩm
+                        </div>
+                        <button type="button" onClick={clearFilters} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Xóa bộ lọc</button>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
@@ -198,9 +249,9 @@ function InventoryPage({ token }) {
                                 <tbody className="divide-y divide-stone-200">
                                     {loading ? (
                                         <tr><td colSpan="7" className="px-6 py-5 text-center text-stone-400">Đang tải...</td></tr>
-                                    ) : products.length === 0 ? (
-                                        <tr><td colSpan="7" className="px-6 py-5 text-center text-stone-400">Chưa có sản phẩm</td></tr>
-                                    ) : products.map((product) => (
+                                    ) : filteredProducts.length === 0 ? (
+                                        <tr><td colSpan="7" className="px-6 py-5 text-center text-stone-400">Không có sản phẩm phù hợp bộ lọc</td></tr>
+                                    ) : filteredProducts.map((product) => (
                                         <tr key={product.productid} className="hover:bg-stone-50">
                                             <td className="px-6 py-4 text-sm text-stone-800">{product.productid}</td>
                                             <td className="px-6 py-4 text-sm text-stone-800">{product.productname}</td>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
     servicetypeid: "",
@@ -52,6 +53,10 @@ function ServiceInvoicesPage({ token }) {
     const [serviceInvoices, setServiceInvoices] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [serviceTypes, setServiceTypes] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
+    const [customerFilter, setCustomerFilter] = useState("all");
+    const [statusFilter, setStatusFilter] = useState("all");
     const [selectedInvoice, setSelectedInvoice] = useState(null);
     const [editingInvoiceId, setEditingInvoiceId] = useState(null);
     const [view, setView] = useState("list");
@@ -162,6 +167,26 @@ function ServiceInvoicesPage({ token }) {
     const formPaidTotal = form.items.reduce((sum, item) => sum + Number(item.paidamount || 0), 0);
     const formRemainingTotal = Math.max(formTotal - formPaidTotal, 0);
     const formStatus = form.items.length > 0 && form.items.every((item) => getLineStatus(item) === "Đã giao") ? "Đã giao" : "Chưa giao";
+
+    const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
+    const filteredServiceInvoices = serviceInvoices.filter((invoice) => {
+        const matchesSearch = !normalizedSearchTerm || [
+            String(invoice.invoiceid || ""),
+            invoice.customername || "",
+            invoice.invoicedate || "",
+            invoice.servicenamesummary || "",
+        ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
+
+        const matchesCustomer = customerFilter === "all" || String(invoice.customerid) === customerFilter;
+        const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
+        return matchesSearch && matchesCustomer && matchesStatus;
+    });
+
+    const clearFilters = () => {
+        setSearchTerm("");
+        setCustomerFilter("all");
+        setStatusFilter("all");
+    };
 
     const buildBm3Html = (invoice) => {
         const details = [...(invoice.details || [])];
@@ -643,6 +668,30 @@ function ServiceInvoicesPage({ token }) {
                 </div>
             </div>
 
+            <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_220px_180px_auto_auto] md:items-end">
+                <label className="block">
+                    <span className="text-sm font-medium text-stone-700">Tìm kiếm</span>
+                    <input type="text" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm theo mã phiếu, khách hàng, dịch vụ hoặc ngày lập" className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400" />
+                </label>
+                <label className="block">
+                    <span className="text-sm font-medium text-stone-700">Lọc khách hàng</span>
+                    <select value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400">
+                        <option value="all">Tất cả khách hàng</option>
+                        {customers.map((customer) => <option key={customer.customerid} value={customer.customerid}>{customer.customername}</option>)}
+                    </select>
+                </label>
+                <label className="block">
+                    <span className="text-sm font-medium text-stone-700">Lọc tình trạng</span>
+                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400">
+                        <option value="all">Tất cả tình trạng</option>
+                        <option value="Chưa giao">Chưa giao</option>
+                        <option value="Đã giao">Đã giao</option>
+                    </select>
+                </label>
+                <div className="rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">Hiển thị {filteredServiceInvoices.length}/{serviceInvoices.length} phiếu</div>
+                <button type="button" onClick={clearFilters} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Xóa bộ lọc</button>
+            </div>
+
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[1280px]">
@@ -663,10 +712,10 @@ function ServiceInvoicesPage({ token }) {
                         <tbody className="divide-y divide-stone-200">
                             {loading ? (
                                 <tr><td colSpan="10" className="px-6 py-5 text-center text-stone-400">Đang tải dữ liệu...</td></tr>
-                            ) : serviceInvoices.length === 0 ? (
-                                <tr><td colSpan="10" className="px-6 py-5 text-center text-stone-400">Chưa có phiếu dịch vụ nào</td></tr>
+                            ) : filteredServiceInvoices.length === 0 ? (
+                                <tr><td colSpan="10" className="px-6 py-5 text-center text-stone-400">Không có phiếu dịch vụ phù hợp bộ lọc</td></tr>
                             ) : (
-                                serviceInvoices.map((invoice) => (
+                                filteredServiceInvoices.map((invoice) => (
                                     <tr key={invoice.invoiceid} className="hover:bg-stone-50 align-top">
                                         <td className="px-6 py-4 text-sm font-semibold text-stone-800">#{invoice.invoiceid}</td>
                                         <td className="px-6 py-4 text-sm text-stone-700">{invoice.customername || `KH ${invoice.customerid}`}</td>

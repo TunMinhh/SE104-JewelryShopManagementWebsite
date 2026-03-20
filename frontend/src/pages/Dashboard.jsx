@@ -249,11 +249,6 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                     </div>
 
                     <div className="flex items-center gap-5">
-                        <div className="hidden md:flex items-center px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-full text-stone-500 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-400 transition-all">
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" placeholder="Tìm kiếm nhanh..." className="bg-transparent border-none outline-none text-sm w-48" />
-                        </div>
-                        
                         <div className="w-px h-8 bg-stone-200 hidden sm:block"></div>
 
                         <div className="flex items-center gap-3">

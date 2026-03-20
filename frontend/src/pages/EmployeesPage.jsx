@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyForm = () => ({
     employeename: "",
@@ -12,6 +13,9 @@ function EmployeesPage({ token }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [employees, setEmployees] = useState([]);
     const [roles, setRoles] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
+    const [roleFilter, setRoleFilter] = useState("all");
     const [view, setView] = useState("list");
     const [editingEmployeeId, setEditingEmployeeId] = useState(null);
     const [form, setForm] = useState(emptyForm);
@@ -160,6 +164,24 @@ function EmployeesPage({ token }) {
         }
     };
 
+    const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
+    const filteredEmployees = employees.filter((employee) => {
+        const matchesSearch = !normalizedSearchTerm || [
+            String(employee.employeeid || ""),
+            employee.employeename || "",
+            employee.username || "",
+            employee.rolename || "",
+        ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
+
+        const matchesRole = roleFilter === "all" || String(employee.roleid) === roleFilter;
+        return matchesSearch && matchesRole;
+    });
+
+    const clearFilters = () => {
+        setSearchTerm("");
+        setRoleFilter("all");
+    };
+
     return (
         <div className="space-y-4">
             {errorMessage ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div> : null}
@@ -172,6 +194,34 @@ function EmployeesPage({ token }) {
                             <p className="mt-1 text-sm text-stone-500">CRUD cơ bản cho hồ sơ nhân viên và tài khoản đăng nhập.</p>
                         </div>
                         <button type="button" onClick={openCreateView} className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400">Thêm nhân viên</button>
+                    </div>
+
+                    <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_220px_auto_auto] md:items-end">
+                        <label className="block">
+                            <span className="text-sm font-medium text-stone-700">Tìm kiếm</span>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                                placeholder="Tìm theo ID, tên nhân viên, username hoặc vai trò"
+                                className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-medium text-stone-700">Lọc vai trò</span>
+                            <select
+                                value={roleFilter}
+                                onChange={(event) => setRoleFilter(event.target.value)}
+                                className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                            >
+                                <option value="all">Tất cả vai trò</option>
+                                {roles.map((role) => <option key={role.roleid} value={role.roleid}>{role.rolename}</option>)}
+                            </select>
+                        </label>
+                        <div className="rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">
+                            Hiển thị {filteredEmployees.length}/{employees.length} nhân viên
+                        </div>
+                        <button type="button" onClick={clearFilters} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Xóa bộ lọc</button>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
@@ -189,9 +239,9 @@ function EmployeesPage({ token }) {
                                 <tbody className="divide-y divide-stone-200">
                                     {loading ? (
                                         <tr><td colSpan="5" className="px-6 py-5 text-center text-stone-400">Đang tải...</td></tr>
-                                    ) : employees.length === 0 ? (
-                                        <tr><td colSpan="5" className="px-6 py-5 text-center text-stone-400">Chưa có nhân viên</td></tr>
-                                    ) : employees.map((employee) => (
+                                    ) : filteredEmployees.length === 0 ? (
+                                        <tr><td colSpan="5" className="px-6 py-5 text-center text-stone-400">Không có nhân viên phù hợp bộ lọc</td></tr>
+                                    ) : filteredEmployees.map((employee) => (
                                         <tr key={employee.employeeid} className="hover:bg-stone-50">
                                             <td className="px-6 py-4 text-sm text-stone-800">{employee.employeeid}</td>
                                             <td className="px-6 py-4 text-sm text-stone-800">{employee.employeename}</td>

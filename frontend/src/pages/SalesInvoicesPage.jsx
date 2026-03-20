@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
     productid: "",
@@ -41,6 +42,9 @@ function SalesInvoicesPage({ token }) {
     const [invoices, setInvoices] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearchTerm = useDebouncedValue(searchTerm);
+    const [customerFilter, setCustomerFilter] = useState("all");
     const [selectedInvoice, setSelectedInvoice] = useState(null);
     const [editingInvoiceId, setEditingInvoiceId] = useState(null);
     const [form, setForm] = useState(emptyForm);
@@ -366,6 +370,23 @@ function SalesInvoicesPage({ token }) {
 
     const formTotal = form.items.reduce((sum, item) => sum + getLineTotal(item), 0);
 
+    const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
+    const filteredInvoices = invoices.filter((invoice) => {
+        const matchesSearch = !normalizedSearchTerm || [
+            String(invoice.invoiceid || ""),
+            invoice.customername || "",
+            invoice.invoicedate || "",
+        ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
+
+        const matchesCustomer = customerFilter === "all" || String(invoice.customerid) === customerFilter;
+        return matchesSearch && matchesCustomer;
+    });
+
+    const clearFilters = () => {
+        setSearchTerm("");
+        setCustomerFilter("all");
+    };
+
     const resetToList = async () => {
         setView("list");
         setEditingInvoiceId(null);
@@ -492,6 +513,22 @@ function SalesInvoicesPage({ token }) {
                 </button>
             </div>
 
+            <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_240px_auto_auto] md:items-end">
+                <label className="block">
+                    <span className="text-sm font-medium text-stone-700">Tìm kiếm</span>
+                    <input type="text" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm theo mã phiếu, khách hàng hoặc ngày lập" className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400" />
+                </label>
+                <label className="block">
+                    <span className="text-sm font-medium text-stone-700">Lọc khách hàng</span>
+                    <select value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400">
+                        <option value="all">Tất cả khách hàng</option>
+                        {customers.map((customer) => <option key={customer.customerid} value={customer.customerid}>{customer.customername}</option>)}
+                    </select>
+                </label>
+                <div className="rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">Hiển thị {filteredInvoices.length}/{invoices.length} phiếu</div>
+                <button type="button" onClick={clearFilters} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50">Xóa bộ lọc</button>
+            </div>
+
             <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[920px]">
@@ -508,10 +545,10 @@ function SalesInvoicesPage({ token }) {
                         <tbody className="divide-y divide-stone-200">
                             {loading ? (
                                 <tr><td colSpan="6" className="px-6 py-5 text-center text-stone-400">Đang tải dữ liệu...</td></tr>
-                            ) : invoices.length === 0 ? (
-                                <tr><td colSpan="6" className="px-6 py-5 text-center text-stone-400">Chưa có phiếu bán nào</td></tr>
+                            ) : filteredInvoices.length === 0 ? (
+                                <tr><td colSpan="6" className="px-6 py-5 text-center text-stone-400">Không có phiếu bán phù hợp bộ lọc</td></tr>
                             ) : (
-                                invoices.map((invoice) => (
+                                filteredInvoices.map((invoice) => (
                                     <tr key={invoice.invoiceid} className="hover:bg-stone-50 align-top">
                                         <td className="px-6 py-4 text-sm font-semibold text-stone-800">#{invoice.invoiceid}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{invoice.customername || `KH ${invoice.customerid}`}</td>
