@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { buildApiUrl } from "../lib/api";
 import SalesInvoicesPage from "./SalesInvoicesPage";
+import PurchaseInvoicesPage from "./PurchaseInvoicesPage";
 
 function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, token }) {
     // State quản lý tab đang được chọn
@@ -75,9 +76,9 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
             // Lấy stats
             const [salesResponse, servicesResponse, customersResponse, trendsResponse] = await Promise.all([
                 fetch(buildApiUrl("/invoices/sales"), { headers }),
-                fetch(buildApiUrl("/invoices/services/count"), { headers }),
+                fetch(buildApiUrl("/service-invoices/count"), { headers }),
                 fetch(buildApiUrl("/customers/count"), { headers }),
-                fetch(buildApiUrl("/invoices/overview/trends?days=30"), { headers }),
+                fetch(buildApiUrl("/dashboard/trends?days=30"), { headers }),
             ]);
 
             let salesData = [];
@@ -162,17 +163,8 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                 if (prodResponse.ok) {
                     setProducts(await prodResponse.json());
                 }
-            } else if (activeTab === "purchases") {
-                const purchResponse = await fetch(buildApiUrl("/invoices/purchases"), { headers });
-                if (purchResponse.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
-                if (purchResponse.ok) {
-                    // setSalesInvoices(await purchResponse.json());
-                }
             } else if (activeTab === "services") {
-                const svcResponse = await fetch(buildApiUrl("/invoices/services"), { headers });
+                const svcResponse = await fetch(buildApiUrl("/service-invoices"), { headers });
                 if (svcResponse.status === 401) {
                     handleUnauthorized();
                     return;
@@ -481,6 +473,8 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                         </div>
                     ) : activeTab === "sales" ? (
                         <SalesInvoicesPage token={token} />
+                    ) : activeTab === "purchases" ? (
+                        <PurchaseInvoicesPage token={token} />
                     ) : activeTab === "services" ? (
                         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">

@@ -22,7 +22,11 @@ from app.routers.auth import router as auth_router
 from app.routers.employees import router as employees_router
 from app.routers.customers import router as customers_router
 from app.routers.products import router as products_router
-from app.routers.invoices import router as invoices_router
+from app.routers.suppliers import router as suppliers_router
+from app.routers.sales_invoices import router as sales_invoices_router
+from app.routers.purchase_invoices import router as purchase_invoices_router
+from app.routers.service_invoices import router as service_invoices_router
+from app.routers.dashboard import router as dashboard_router
 
 app = FastAPI()
 
@@ -40,7 +44,11 @@ app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(employees_router, prefix="/employees", tags=["employees"])
 app.include_router(customers_router, prefix="/customers", tags=["customers"])
 app.include_router(products_router, prefix="/products", tags=["products"])
-app.include_router(invoices_router, prefix="/invoices", tags=["invoices"])
+app.include_router(suppliers_router, prefix="/suppliers", tags=["suppliers"])
+app.include_router(sales_invoices_router, prefix="/invoices", tags=["sales-invoices"])
+app.include_router(purchase_invoices_router, prefix="/invoices", tags=["purchase-invoices"])
+app.include_router(service_invoices_router, prefix="/service-invoices", tags=["service-invoices"])
+app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
 
 @app.get("/test-db-connection")
 def test_db_connection():
