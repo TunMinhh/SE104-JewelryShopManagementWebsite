@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { buildApiUrl } from "../lib/api";
+import EmployeesPage from "./EmployeesPage";
+import CustomersPage from "./CustomersPage";
+import InventoryPage from "./InventoryPage";
 import SalesInvoicesPage from "./SalesInvoicesPage";
 import PurchaseInvoicesPage from "./PurchaseInvoicesPage";
 import ServiceInvoicesPage from "./ServiceInvoicesPage";
@@ -23,9 +26,6 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
             customersCount: null,
         },
     });
-    const [employees, setEmployees] = useState([]);
-    const [customers, setCustomers] = useState([]);
-    const [products, setProducts] = useState([]);
     const [recentOrders, setRecentOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
@@ -131,35 +131,6 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                 trends,
             });
 
-            // Lấy dữ liệu theo tab
-            if (activeTab === "employees") {
-                const empResponse = await fetch(buildApiUrl("/employees"), { headers });
-                if (empResponse.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
-                if (empResponse.ok) {
-                    setEmployees(await empResponse.json());
-                }
-            } else if (activeTab === "customers") {
-                const custResponse = await fetch(buildApiUrl("/customers"), { headers });
-                if (custResponse.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
-                if (custResponse.ok) {
-                    setCustomers(await custResponse.json());
-                }
-            } else if (activeTab === "inventory") {
-                const prodResponse = await fetch(buildApiUrl("/products"), { headers });
-                if (prodResponse.status === 401) {
-                    handleUnauthorized();
-                    return;
-                }
-                if (prodResponse.ok) {
-                    setProducts(await prodResponse.json());
-                }
-            }
         } catch (error) {
             console.error("Error fetching data:", error);
             setErrorMessage("Không thể tải dữ liệu từ máy chủ.");
@@ -366,96 +337,11 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                             </div>
                         </div>
                     ) : activeTab === "employees" ? (
-                        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-stone-50 border-b border-stone-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tên nhân viên</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Username</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Role ID</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-stone-200">
-                                        {loading ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Đang tải...</td></tr>
-                                        ) : employees.length === 0 ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Không có dữ liệu</td></tr>
-                                        ) : (
-                                            employees.map((emp) => (
-                                                <tr key={emp.employeeid} className="hover:bg-stone-50">
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{emp.employeeid}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{emp.employeename}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{emp.username}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{emp.roleid}</td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <EmployeesPage token={token} />
                     ) : activeTab === "customers" ? (
-                        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-stone-50 border-b border-stone-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tên khách hàng</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Điện thoại</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-stone-200">
-                                        {loading ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Đang tải...</td></tr>
-                                        ) : customers.length === 0 ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Không có dữ liệu</td></tr>
-                                        ) : (
-                                            customers.map((cust) => (
-                                                <tr key={cust.customerid} className="hover:bg-stone-50">
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{cust.customerid}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{cust.customername}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{cust.phonenumber}</td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <CustomersPage token={token} />
                     ) : activeTab === "inventory" ? (
-                        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-stone-50 border-b border-stone-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tên sản phẩm</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Giá mua</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Mô tả</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-stone-200">
-                                        {loading ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Đang tải...</td></tr>
-                                        ) : products.length === 0 ? (
-                                            <tr><td colSpan="4" className="px-6 py-4 text-center text-stone-400">Không có dữ liệu</td></tr>
-                                        ) : (
-                                            products.map((prod) => (
-                                                <tr key={prod.productid} className="hover:bg-stone-50">
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{prod.productid}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-800">{prod.productname}</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{(prod.purchaseprice || 0).toLocaleString("vi-VN")}đ</td>
-                                                    <td className="px-6 py-4 text-sm text-stone-600">{prod.description || "N/A"}</td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <InventoryPage token={token} />
                     ) : activeTab === "sales" ? (
                         <SalesInvoicesPage token={token} />
                     ) : activeTab === "purchases" ? (

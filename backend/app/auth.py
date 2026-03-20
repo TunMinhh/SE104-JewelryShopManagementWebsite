@@ -26,6 +26,11 @@ def verify_password(plain_password: str, stored_password_hash: str) -> bool:
     return plain_password == stored_password_hash
 
 
+def hash_password(plain_password: str) -> str:
+    digest = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+    return f"sha256${digest}"
+
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (

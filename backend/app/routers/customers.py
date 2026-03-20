@@ -57,6 +57,16 @@ def _serialize_customer(customer: Customer):
     }
 
 
+def _get_customer_or_404(customer_id: int, db: Session):
+    customer = db.query(Customer).filter(Customer.customerid == customer_id).first()
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found",
+        )
+    return customer
+
+
 @router.get("")
 @router.get("/", include_in_schema=False)
 def list_customers(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
@@ -98,6 +108,61 @@ def create_customer(
     return _serialize_customer(customer)
 
 
+@router.put("/{customer_id}")
+def update_customer(
+    customer_id: int,
+    payload: CustomerPayload,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee),
+):
+    customer = _get_customer_or_404(customer_id, db)
+
+    customer_name = payload.customername.strip()
+    phone_number = payload.phonenumber.strip() if payload.phonenumber else None
+
+    if not customer_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Customer name is required",
+        )
+
+    if phone_number:
+        existing_customer = (
+            db.query(Customer)
+            .filter(Customer.phonenumber == phone_number, Customer.customerid != customer_id)
+            .first()
+        )
+        if existing_customer:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Phone number already belongs to an existing customer",
+            )
+
+    customer.customername = customer_name
+    customer.phonenumber = phone_number
+    db.commit()
+    db.refresh(customer)
+    return _serialize_customer(customer)
+
+
+@router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_customer(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee),
+):
+    customer = _get_customer_or_404(customer_id, db)
+
+    if customer.salesinvoices or customer.serviceinvoices:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete customer that already has invoices",
+        )
+
+    db.delete(customer)
+    db.commit()
+
+
 @router.get("/count")
 def count_customers(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     count = db.query(func.count(Customer.customerid)).scalar()
@@ -106,10 +171,5 @@ def count_customers(db: Session = Depends(get_db), current_employee: Employee = 
 
 @router.get("/{customer_id}")
 def get_customer(customer_id: int, db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
-    customer = db.query(Customer).filter(Customer.customerid == customer_id).first()
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found",
-        )
+    customer = _get_customer_or_404(customer_id, db)
     return _serialize_customer(customer)
