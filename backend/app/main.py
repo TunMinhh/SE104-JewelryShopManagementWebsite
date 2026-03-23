@@ -30,6 +30,7 @@ from app.routers.purchase_invoices import router as purchase_invoices_router
 from app.routers.service_invoices import router as service_invoices_router
 from app.routers.service_types import router as service_types_router
 from app.routers.dashboard import router as dashboard_router
+from app.routers.inventory_reports import router as inventory_reports_router
 
 app = FastAPI()
 
@@ -55,6 +56,7 @@ app.include_router(purchase_invoices_router, prefix="/invoices", tags=["purchase
 app.include_router(service_types_router, prefix="/service-types", tags=["service-types"])
 app.include_router(service_invoices_router, prefix="/service-invoices", tags=["service-invoices"])
 app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
+app.include_router(inventory_reports_router, prefix="/inventory-reports", tags=["inventory-reports"])
 
 @app.get("/test-db-connection")
 def test_db_connection():

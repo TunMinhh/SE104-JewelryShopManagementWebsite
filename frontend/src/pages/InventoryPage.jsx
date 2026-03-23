@@ -14,6 +14,10 @@ function formatCurrency(value) {
     return Number(value || 0).toLocaleString("vi-VN");
 }
 
+function formatQuantity(value) {
+    return Number(value || 0).toLocaleString("vi-VN");
+}
+
 function InventoryPage({ token }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [products, setProducts] = useState([]);
@@ -113,6 +117,7 @@ function InventoryPage({ token }) {
         }
     };
 
+
     const handleDelete = async (productId) => {
         if (!window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm #${productId}?`)) return;
         setLoading(true);
@@ -177,6 +182,7 @@ function InventoryPage({ token }) {
             String(product.productid || ""),
             product.productname || "",
             product.categoryname || "",
+            String(product.currentquantity || ""),
             product.unitofmeasure || "",
             product.description || "",
         ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
@@ -234,12 +240,13 @@ function InventoryPage({ token }) {
 
                     <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1080px]">
+                            <table className="w-full min-w-[1180px]">
                                 <thead className="bg-stone-50 border-b border-stone-200">
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">ID</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Tên sản phẩm</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Danh mục</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Số lượng</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Giá mua</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">ĐVT</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mô tả</th>
@@ -248,14 +255,15 @@ function InventoryPage({ token }) {
                                 </thead>
                                 <tbody className="divide-y divide-stone-200">
                                     {loading ? (
-                                        <tr><td colSpan="7" className="px-6 py-5 text-center text-stone-400">Đang tải...</td></tr>
+                                        <tr><td colSpan="8" className="px-6 py-5 text-center text-stone-400">Đang tải...</td></tr>
                                     ) : filteredProducts.length === 0 ? (
-                                        <tr><td colSpan="7" className="px-6 py-5 text-center text-stone-400">Không có sản phẩm phù hợp bộ lọc</td></tr>
+                                        <tr><td colSpan="8" className="px-6 py-5 text-center text-stone-400">Không có sản phẩm phù hợp bộ lọc</td></tr>
                                     ) : filteredProducts.map((product) => (
                                         <tr key={product.productid} className="hover:bg-stone-50">
                                             <td className="px-6 py-4 text-sm text-stone-800">{product.productid}</td>
                                             <td className="px-6 py-4 text-sm text-stone-800">{product.productname}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{product.categoryname || "-"}</td>
+                                            <td className={`px-6 py-4 text-sm font-medium ${Number(product.currentquantity || 0) < 0 ? "text-red-600" : "text-stone-800"}`}>{formatQuantity(product.currentquantity)}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{formatCurrency(product.purchaseprice)}đ</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{product.unitofmeasure || "-"}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{product.description || "-"}</td>

@@ -9,6 +9,8 @@ from app.database import SessionLocal
 from app.models.product import Product
 from app.models.employee import Employee
 from app.models.productcategory import ProductCategory
+from app.models.purchaseinvoicedetail import PurchaseInvoiceDetail
+from app.models.salesinvoicedetail import SalesInvoiceDetail
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -53,7 +55,56 @@ def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(sec
     return employee
 
 
-def _serialize_product(product: Product):
+def _build_quantity_map(query_results):
+    return {
+        product_id: float(quantity or 0)
+        for product_id, quantity in query_results
+    }
+
+
+def _get_current_quantities(db: Session):
+    purchased_quantities = _build_quantity_map(
+        db.query(
+            PurchaseInvoiceDetail.productid,
+            func.coalesce(func.sum(PurchaseInvoiceDetail.quantity), 0),
+        )
+        .group_by(PurchaseInvoiceDetail.productid)
+        .all()
+    )
+
+    sold_quantities = _build_quantity_map(
+        db.query(
+            SalesInvoiceDetail.productid,
+            func.coalesce(func.sum(SalesInvoiceDetail.quantity), 0),
+        )
+        .group_by(SalesInvoiceDetail.productid)
+        .all()
+    )
+
+    product_ids = set(purchased_quantities) | set(sold_quantities)
+    return {
+        product_id: purchased_quantities.get(product_id, 0) - sold_quantities.get(product_id, 0)
+        for product_id in product_ids
+    }
+
+
+def _get_current_quantity(db: Session, product_id: int):
+    purchased_quantity = (
+        db.query(func.coalesce(func.sum(PurchaseInvoiceDetail.quantity), 0))
+        .filter(PurchaseInvoiceDetail.productid == product_id)
+        .scalar()
+        or 0
+    )
+    sold_quantity = (
+        db.query(func.coalesce(func.sum(SalesInvoiceDetail.quantity), 0))
+        .filter(SalesInvoiceDetail.productid == product_id)
+        .scalar()
+        or 0
+    )
+    return float(purchased_quantity) - float(sold_quantity)
+
+
+def _serialize_product(product: Product, current_quantity: float = 0):
     return {
         "productid": product.productid,
         "productname": product.productname,
@@ -62,6 +113,7 @@ def _serialize_product(product: Product):
         "purchaseprice": float(product.purchaseprice) if product.purchaseprice else 0,
         "unitofmeasure": product.unitofmeasure,
         "description": product.description,
+        "currentquantity": current_quantity,
         "recommendedprice": float(
             product.purchaseprice * (1 + (((product.category.profitpercentage if product.category else 0) or 0) / 100))
         ) if product.purchaseprice else 0,
@@ -119,7 +171,8 @@ def _validate_product_payload(payload: ProductPayload, db: Session, product_id: 
 @router.get("/", include_in_schema=False)
 def list_products(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     products = db.query(Product).options(joinedload(Product.category)).all()
-    return [_serialize_product(product) for product in products]
+    current_quantities = _get_current_quantities(db)
+    return [_serialize_product(product, current_quantities.get(product.productid, 0)) for product in products]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -142,7 +195,7 @@ def create_product(
     db.commit()
     db.refresh(product)
     created_product = _get_product_or_404(product.productid, db)
-    return _serialize_product(created_product)
+    return _serialize_product(created_product, _get_current_quantity(db, created_product.productid))
 
 
 @router.get("/count")
@@ -154,7 +207,7 @@ def count_products(db: Session = Depends(get_db), current_employee: Employee = D
 @router.get("/{product_id}")
 def get_product(product_id: int, db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     product = _get_product_or_404(product_id, db)
-    return _serialize_product(product)
+    return _serialize_product(product, _get_current_quantity(db, product_id))
 
 
 @router.put("/{product_id}")
@@ -176,7 +229,7 @@ def update_product(
     db.commit()
     db.refresh(product)
     updated_product = _get_product_or_404(product_id, db)
-    return _serialize_product(updated_product)
+    return _serialize_product(updated_product, _get_current_quantity(db, product_id))
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
