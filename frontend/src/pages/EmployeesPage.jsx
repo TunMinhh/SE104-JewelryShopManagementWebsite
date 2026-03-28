@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { buildApiUrl } from "../lib/api";
+import { fetchJson as _fetchJson } from "../lib/fetchJson";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyForm = () => ({
@@ -23,30 +23,7 @@ function EmployeesPage({ token }) {
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
 
-    const fetchJson = async (path, options = {}) => {
-        const response = await fetch(buildApiUrl(path), {
-            ...options,
-            headers: {
-                Authorization: `Bearer ${authToken}`,
-                "Content-Type": "application/json",
-                ...(options.headers || {}),
-            },
-        });
-
-        if (!response.ok) {
-            let detail = "Yêu cầu thất bại";
-            try {
-                const payload = await response.json();
-                detail = payload.detail || detail;
-            } catch {
-                detail = response.statusText || detail;
-            }
-            throw new Error(detail);
-        }
-
-        if (response.status === 204) return null;
-        return response.json();
-    };
+    const fetchJson = (path, options) => _fetchJson(authToken, path, options);
 
     const loadBaseData = async () => {
         const [employeeData, roleData] = await Promise.all([

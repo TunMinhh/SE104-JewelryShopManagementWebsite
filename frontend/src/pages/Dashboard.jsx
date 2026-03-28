@@ -7,10 +7,11 @@ import InventoryReportPage from "./InventoryReportPage";
 import SalesInvoicesPage from "./SalesInvoicesPage";
 import PurchaseInvoicesPage from "./PurchaseInvoicesPage";
 import ServiceInvoicesPage from "./ServiceInvoicesPage";
+import AuditLogPage from "./AuditLogPage";
 
-function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, token }) {
+function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, token, roleName = "Employee" }) {
     // State quản lý tab đang được chọn
-    const [activeTab, setActiveTab] = useState("overview");
+    const [activeTab, setActiveTab] = useState(roleName === "Admin" ? "overview" : "customers");
     // State quản lý đóng/mở sidebar trên mobile
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // State cho dữ liệu từ backend
@@ -147,31 +148,36 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
 
     // Danh sách các menu chức năng
     const menuItems = [
-        { id: "overview", name: "Tổng quan", icon: (
+        { id: "overview", name: "Tổng quan", roles: ["Admin"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
         )},
-        { id: "employees", name: "Quản lý nhân viên", icon: (
+        { id: "employees", name: "Quản lý nhân viên", roles: ["Admin"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
         )},
-        { id: "customers", name: "Quản lý khách hàng", icon: (
+        { id: "customers", name: "Quản lý khách hàng", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
         )},
-        { id: "inventory", name: "Quản lý kho trang sức", icon: (
+        { id: "inventory", name: "Quản lý kho trang sức", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
         )},
-        { id: "purchases", name: "Quản lý phiếu mua", icon: (
+        { id: "purchases", name: "Quản lý phiếu mua", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
         )},
-        { id: "sales", name: "Quản lý phiếu bán", icon: (
+        { id: "sales", name: "Quản lý phiếu bán", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
         )},
-        { id: "services", name: "Quản lý phiếu dịch vụ", icon: (
+        { id: "services", name: "Quản lý phiếu dịch vụ", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"></path></svg>
         )},
-        { id: "inventory-report", name: "Báo cáo tồn kho", icon: (
+        { id: "inventory-report", name: "Báo cáo tồn kho", roles: ["Admin"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-6m3 6V7m3 10v-4m4 6H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2z"></path></svg>
-        )}
+        )},
+        { id: "audit-log", name: "Nhật ký hoạt động", roles: ["Admin"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        )},
     ];
+
+    const visibleMenuItems = menuItems.filter((item) => item.roles.includes(roleName));
 
     const formatTrendLabel = (trend) => {
         if (trend === null || trend === undefined) return "N/A";
@@ -206,7 +212,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                 </div>
 
                 <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
-                    {menuItems.map((item) => (
+                    {visibleMenuItems.map((item) => (
                         <button
                             key={item.id}
                             onClick={() => {
@@ -248,7 +254,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
                         <h2 className="text-xl font-semibold text-stone-800 hidden sm:block">
-                            {menuItems.find(m => m.id === activeTab)?.name}
+                            {visibleMenuItems.find(m => m.id === activeTab)?.name}
                         </h2>
                     </div>
 
@@ -261,7 +267,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                             </div>
                             <div className="hidden sm:block text-sm">
                                 <p className="font-semibold text-stone-800">{employeeName}</p>
-                                <p className="text-stone-500 text-xs">Quản lý cửa hàng</p>
+                                <p className="text-stone-500 text-xs">{roleName === "Admin" ? "Quản trị viên" : "Nhân viên"}</p>
                             </div>
                         </div>
                     </div>
@@ -340,7 +346,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                     ) : activeTab === "customers" ? (
                         <CustomersPage token={token} />
                     ) : activeTab === "inventory" ? (
-                        <InventoryPage token={token} />
+                        <InventoryPage token={token} readOnly={roleName !== "Admin"} />
                     ) : activeTab === "inventory-report" ? (
                         <InventoryReportPage token={token} />
                     ) : activeTab === "sales" ? (
@@ -349,12 +355,14 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                         <PurchaseInvoicesPage token={token} />
                     ) : activeTab === "services" ? (
                         <ServiceInvoicesPage token={token} />
+                    ) : activeTab === "audit-log" ? (
+                        <AuditLogPage token={token} />
                     ) : (
                         // Placeholder cho tab khác (purchases)
                         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm h-full min-h-[500px] flex flex-col items-center justify-center text-stone-400">
-                            {menuItems.find(m => m.id === activeTab)?.icon}
+                            {visibleMenuItems.find(m => m.id === activeTab)?.icon}
                             <h3 className="mt-4 text-lg font-medium text-stone-600">
-                                Màn hình {menuItems.find(m => m.id === activeTab)?.name}
+                                Màn hình {visibleMenuItems.find(m => m.id === activeTab)?.name}
                             </h3>
                             <p className="mt-2 text-sm text-stone-400">Component thực tế của bạn sẽ được render tại đây</p>
                         </div>

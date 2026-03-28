@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import { formatCurrency, formatQuantity, escapeHtml } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
@@ -19,23 +20,6 @@ const emptyNewSupplier = () => ({
     address: "",
     phonenumber: "",
 });
-
-function formatCurrency(value) {
-    return Number(value || 0).toLocaleString("vi-VN");
-}
-
-function formatQuantity(value) {
-    return Number(value || 0).toLocaleString("vi-VN");
-}
-
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-}
 
 function PurchaseInvoicesPage({ token }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";

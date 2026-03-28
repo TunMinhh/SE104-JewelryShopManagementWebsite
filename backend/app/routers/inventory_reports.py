@@ -1,13 +1,11 @@
 from calendar import monthrange
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import decode_access_token
-from app.database import SessionLocal
+from app.deps import get_db, require_admin
 from app.models.employee import Employee
 from app.models.product import Product
 from app.models.purchaseinvoice import PurchaseInvoice
@@ -16,38 +14,6 @@ from app.models.salesinvoice import SalesInvoice
 from app.models.salesinvoicedetail import SalesInvoiceDetail
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    employee = db.query(Employee).filter(Employee.employeeid == int(token_data["sub"])).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found",
-        )
-    return employee
 
 
 def _build_quantity_map(query_results):
@@ -62,7 +28,7 @@ def get_stock_report(
     year: int = Query(..., ge=2000, le=2100),
     month: int = Query(..., ge=1, le=12),
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     start_date = date(year, month, 1)
     end_date = date(year, month, monthrange(year, month)[1])

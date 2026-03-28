@@ -1,18 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
-
-function formatQuantity(value) {
-    return Number(value || 0).toLocaleString("vi-VN");
-}
-
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-}
+import { formatQuantity, escapeHtml } from "../lib/formatters";
 
 function getCurrentMonthValue() {
     const now = new Date();

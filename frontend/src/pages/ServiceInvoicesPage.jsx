@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import { formatCurrency, formatDate, escapeHtml } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
@@ -21,24 +22,6 @@ const emptyNewCustomer = () => ({
     customername: "",
     phonenumber: "",
 });
-
-function formatCurrency(value) {
-    return Number(value || 0).toLocaleString("vi-VN");
-}
-
-function formatDate(value) {
-    if (!value) return "-";
-    return new Date(value).toLocaleDateString("vi-VN");
-}
-
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-}
 
 function getTodayDateString() {
     const now = new Date();

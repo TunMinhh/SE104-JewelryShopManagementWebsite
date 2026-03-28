@@ -3,13 +3,11 @@ from decimal import Decimal
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import decode_access_token
-from app.database import SessionLocal
+from app.deps import get_db, get_current_employee, to_float, log_action
 from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.serviceinvoice import ServiceInvoice
@@ -17,7 +15,6 @@ from app.models.serviceinvoicedetail import ServiceInvoiceDetail
 from app.models.servicetype import ServiceType
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 class ServiceInvoiceLineItemPayload(BaseModel):
@@ -32,41 +29,6 @@ class ServiceInvoicePayload(BaseModel):
     customerid: int
     createddate: date
     items: List[ServiceInvoiceLineItemPayload] = Field(min_length=1)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    employee = db.query(Employee).filter(Employee.employeeid == int(token_data["sub"])).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found",
-        )
-    return employee
-
-
-def _to_float(value):
-    return float(value) if value is not None else 0.0
 
 
 def _to_money(value):
@@ -179,12 +141,12 @@ def _serialize_service_invoice_detail(detail: ServiceInvoiceDetail):
         "serviceinvoicedetailid": detail.serviceinvoicedetailid,
         "servicetypeid": detail.servicetypeid,
         "servicename": service_type.servicename if service_type else None,
-        "defaultprice": _to_float(detail.defaultprice if detail.defaultprice is not None else (service_type.defaultserviceprice if service_type else 0)),
-        "actualprice": _to_float(detail.actualprice),
+        "defaultprice": to_float(detail.defaultprice if detail.defaultprice is not None else (service_type.defaultserviceprice if service_type else 0)),
+        "actualprice": to_float(detail.actualprice),
         "quantity": int(detail.quantity) if detail.quantity is not None else 0,
-        "totalamount": _to_float(detail.totalamount),
-        "paidamount": _to_float(detail.paidamount),
-        "remainingamount": _to_float(detail.remainingamount),
+        "totalamount": to_float(detail.totalamount),
+        "paidamount": to_float(detail.paidamount),
+        "remainingamount": to_float(detail.remainingamount),
         "deliverydate": detail.deliverydate.isoformat() if detail.deliverydate else None,
         "status": "Đã giao" if is_delivered else "Chưa giao",
     }
@@ -200,9 +162,9 @@ def _serialize_service_invoice(invoice: ServiceInvoice, include_details: bool = 
         "customerid": invoice.customerid,
         "customername": invoice.customer.customername if invoice.customer else None,
         "customerphonenumber": invoice.customer.phonenumber if invoice.customer else None,
-        "totalamount": _to_float(invoice.totalamount),
-        "totalpaid": _to_float(invoice.totalpaid),
-        "remainingamount": _to_float(invoice.remainingamount),
+        "totalamount": to_float(invoice.totalamount),
+        "totalpaid": to_float(invoice.totalpaid),
+        "remainingamount": to_float(invoice.remainingamount),
         "status": invoice.status or ("Đã giao" if is_completed else "Chưa giao"),
         "itemcount": len(ordered_details),
         "servicenames": service_names,
@@ -274,6 +236,7 @@ def create_service_invoice(
 
     db.commit()
     created_invoice = _get_service_invoice_or_404(invoice.serviceinvoiceid, db)
+    log_action(db, current_employee.employeeid, "CREATE", "ServiceInvoice", invoice.serviceinvoiceid, f"Tạo phiếu dịch vụ #{invoice.serviceinvoiceid}")
     return _serialize_service_invoice(created_invoice, include_details=True)
 
 
@@ -288,6 +251,7 @@ def update_service_invoice(
     _replace_service_invoice_details(invoice, payload, db)
     db.commit()
     updated_invoice = _get_service_invoice_or_404(invoice_id, db)
+    log_action(db, current_employee.employeeid, "UPDATE", "ServiceInvoice", invoice_id, f"Cập nhật phiếu dịch vụ #{invoice_id}")
     return _serialize_service_invoice(updated_invoice, include_details=True)
 
 
@@ -309,3 +273,4 @@ def delete_service_invoice(
 
     db.delete(invoice)
     db.commit()
+    log_action(db, current_employee.employeeid, "DELETE", "ServiceInvoice", invoice_id, f"Xóa phiếu dịch vụ #{invoice_id}")

@@ -4,21 +4,9 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import engine
-from app.models.customer import Customer
-from app.models.employee import Employee
-from app.models.product import Product
-from app.models.productcategory import ProductCategory
-from app.models.purchaseinvoice import PurchaseInvoice
-from app.models.purchaseinvoicedetail import PurchaseInvoiceDetail
-from app.models.role import Role
-from app.models.salesinvoice import SalesInvoice
-from app.models.salesinvoicedetail import SalesInvoiceDetail
-from app.models.serviceinvoice import ServiceInvoice
-from app.models.serviceinvoicedetail import ServiceInvoiceDetail
-from app.models.servicetype import ServiceType
-from app.models.supplier import Supplier
+from app.database import Base
+import app.models  # noqa: F401  – register all SQLAlchemy mappers
 from app.routers.auth import router as auth_router
-
 from app.routers.employees import router as employees_router
 from app.routers.customers import router as customers_router
 from app.routers.products import router as products_router
@@ -31,8 +19,12 @@ from app.routers.service_invoices import router as service_invoices_router
 from app.routers.service_types import router as service_types_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.inventory_reports import router as inventory_reports_router
+from app.routers.audit_logs import router as audit_logs_router
 
 app = FastAPI()
+
+# Create tables that don't exist yet (e.g. auditlog)
+Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,6 +49,7 @@ app.include_router(service_types_router, prefix="/service-types", tags=["service
 app.include_router(service_invoices_router, prefix="/service-invoices", tags=["service-invoices"])
 app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
 app.include_router(inventory_reports_router, prefix="/inventory-reports", tags=["inventory-reports"])
+app.include_router(audit_logs_router, prefix="/audit-logs", tags=["audit-logs"])
 
 @app.get("/test-db-connection")
 def test_db_connection():

@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, decode_access_token, verify_password
-from app.database import SessionLocal
+from app.deps import get_db
 from app.models.employee import Employee
+from app.models.role import Role
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -22,19 +23,17 @@ class LoginResponse(BaseModel):
     employeeid: int
     employeename: str
     roleid: int
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    rolename: str
 
 
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    employee = db.query(Employee).filter(Employee.username == payload.username).first()
+    employee = (
+        db.query(Employee)
+        .join(Role, Role.roleid == Employee.roleid)
+        .filter(Employee.username == payload.username)
+        .first()
+    )
 
     if not employee or not verify_password(payload.password, employee.passwordhash):
         raise HTTPException(
@@ -56,6 +55,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         employeeid=employee.employeeid,
         employeename=employee.employeename,
         roleid=employee.roleid,
+        rolename=employee.role.rolename if employee.role else "Employee",
     )
 
 
@@ -71,7 +71,12 @@ def me(
     if not payload or "sub" not in payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    employee = db.query(Employee).filter(Employee.employeeid == int(payload["sub"])).first()
+    employee = (
+        db.query(Employee)
+        .join(Role, Role.roleid == Employee.roleid)
+        .filter(Employee.employeeid == int(payload["sub"]))
+        .first()
+    )
     if not employee:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -80,4 +85,5 @@ def me(
         "username": employee.username,
         "employeename": employee.employeename,
         "roleid": employee.roleid,
+        "rolename": employee.role.rolename if employee.role else "Employee",
     }

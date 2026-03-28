@@ -7,11 +7,3 @@ SQLALCHEMY_DATABASE_URL = "postgresql://postgres:cotuanminh2005@localhost:5432/J
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-
-# Dependency để lấy DB session cho mỗi request
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()

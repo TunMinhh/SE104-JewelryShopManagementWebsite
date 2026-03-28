@@ -3,12 +3,10 @@ from decimal import Decimal
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import decode_access_token
-from app.database import SessionLocal
+from app.deps import get_db, get_current_employee, to_float, log_action
 from app.models.employee import Employee
 from app.models.product import Product
 from app.models.purchaseinvoicedetail import PurchaseInvoiceDetail
@@ -16,7 +14,6 @@ from app.models.purchaseinvoice import PurchaseInvoice
 from app.models.supplier import Supplier
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 class PurchaseInvoiceLineItemPayload(BaseModel):
@@ -29,41 +26,6 @@ class PurchaseInvoicePayload(BaseModel):
     supplierid: int
     createddate: date
     items: List[PurchaseInvoiceLineItemPayload] = Field(min_length=1)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    employee = db.query(Employee).filter(Employee.employeeid == int(token_data["sub"])).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found",
-        )
-    return employee
-
-
-def _to_float(value):
-    return float(value) if value is not None else 0.0
 
 
 def _get_purchase_invoice_query(db: Session):
@@ -85,8 +47,8 @@ def _serialize_purchase_invoice_detail(detail: PurchaseInvoiceDetail):
         "categoryname": category.categoryname if category else None,
         "unitofmeasure": product.unitofmeasure if product else None,
         "quantity": int(detail.quantity) if detail.quantity is not None else 0,
-        "purchaseprice": _to_float(detail.purchaseprice),
-        "totalamount": _to_float(detail.totalamount),
+        "purchaseprice": to_float(detail.purchaseprice),
+        "totalamount": to_float(detail.totalamount),
     }
 
 
@@ -99,7 +61,7 @@ def _serialize_purchase_invoice(invoice: PurchaseInvoice, include_details: bool 
         "suppliername": invoice.supplier.suppliername if invoice.supplier else None,
         "supplieraddress": invoice.supplier.address if invoice.supplier else None,
         "supplierphonenumber": invoice.supplier.phonenumber if invoice.supplier else None,
-        "totalamount": round(sum(_to_float(detail.totalamount) for detail in ordered_details), 2),
+        "totalamount": round(sum(to_float(detail.totalamount) for detail in ordered_details), 2),
         "itemcount": len(ordered_details),
     }
     if include_details:
@@ -211,6 +173,7 @@ def create_purchase_invoice(
 
     db.commit()
     created_invoice = _get_purchase_invoice_or_404(invoice.purchaseinvoiceid, db)
+    log_action(db, current_employee.employeeid, "CREATE", "PurchaseInvoice", invoice.purchaseinvoiceid, f"Tạo phiếu mua #{invoice.purchaseinvoiceid}")
     return _serialize_purchase_invoice(created_invoice, include_details=True)
 
 
@@ -225,6 +188,7 @@ def update_purchase_invoice(
     _replace_purchase_invoice_details(invoice, payload, db)
     db.commit()
     updated_invoice = _get_purchase_invoice_or_404(invoice_id, db)
+    log_action(db, current_employee.employeeid, "UPDATE", "PurchaseInvoice", invoice_id, f"Cập nhật phiếu mua #{invoice_id}")
     return _serialize_purchase_invoice(updated_invoice, include_details=True)
 
 
@@ -243,3 +207,4 @@ def delete_purchase_invoice(
 
     db.delete(invoice)
     db.commit()
+    log_action(db, current_employee.employeeid, "DELETE", "PurchaseInvoice", invoice_id, f"Xóa phiếu mua #{invoice_id}")

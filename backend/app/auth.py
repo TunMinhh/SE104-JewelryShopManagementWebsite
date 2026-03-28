@@ -9,10 +9,8 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8
 
 
-def _verify_sha256_password(plain_password: str, hashed_password: str) -> bool:
-    # Supports format: sha256$<hex_digest>
-    digest = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
-    return hashed_password == f"sha256${digest}"
+def _sha256_digest(plain_password: str) -> str:
+    return hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
 
 
 def verify_password(plain_password: str, stored_password_hash: str) -> bool:
@@ -20,15 +18,14 @@ def verify_password(plain_password: str, stored_password_hash: str) -> bool:
         return False
 
     if stored_password_hash.startswith("sha256$"):
-        return _verify_sha256_password(plain_password, stored_password_hash)
+        return stored_password_hash == f"sha256${_sha256_digest(plain_password)}"
 
     # Fallback for legacy/demo data where password is stored directly.
     return plain_password == stored_password_hash
 
 
 def hash_password(plain_password: str) -> str:
-    digest = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
-    return f"sha256${digest}"
+    return f"sha256${_sha256_digest(plain_password)}"
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:

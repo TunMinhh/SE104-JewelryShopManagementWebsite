@@ -1,12 +1,10 @@
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.auth import decode_access_token
-from app.database import SessionLocal
+from app.deps import get_db, require_admin
 from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.salesinvoice import SalesInvoice
@@ -14,38 +12,6 @@ from app.models.salesinvoicedetail import SalesInvoiceDetail
 from app.models.serviceinvoice import ServiceInvoice
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    employee = db.query(Employee).filter(Employee.employeeid == int(token_data["sub"])).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found",
-        )
-    return employee
 
 
 def _calc_change_percent(current: float, previous: float):
@@ -58,7 +24,7 @@ def _calc_change_percent(current: float, previous: float):
 def get_overview_trends(
     days: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     today = date.today()
     current_start = today - timedelta(days=days - 1)

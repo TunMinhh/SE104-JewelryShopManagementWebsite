@@ -3,13 +3,11 @@ from decimal import Decimal
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import decode_access_token
-from app.database import SessionLocal
+from app.deps import get_db, get_current_employee, to_float, log_action
 from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.product import Product
@@ -17,7 +15,6 @@ from app.models.salesinvoice import SalesInvoice
 from app.models.salesinvoicedetail import SalesInvoiceDetail
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 class SalesInvoiceLineItemPayload(BaseModel):
@@ -30,41 +27,6 @@ class SalesInvoicePayload(BaseModel):
     customerid: int
     createddate: date
     items: List[SalesInvoiceLineItemPayload] = Field(min_length=1)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-
-    employee = db.query(Employee).filter(Employee.employeeid == int(token_data["sub"])).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found",
-        )
-    return employee
-
-
-def _to_float(value):
-    return float(value) if value is not None else 0.0
 
 
 def _get_product_selling_price(product: Product) -> Decimal:
@@ -93,8 +55,8 @@ def _serialize_sales_invoice_detail(detail: SalesInvoiceDetail):
         "categoryname": category.categoryname if category else None,
         "unitofmeasure": product.unitofmeasure if product else None,
         "quantity": int(detail.quantity) if detail.quantity is not None else 0,
-        "sellingprice": _to_float(detail.sellingprice),
-        "totalamount": _to_float(detail.totalamount),
+        "sellingprice": to_float(detail.sellingprice),
+        "totalamount": to_float(detail.totalamount),
     }
 
 
@@ -105,7 +67,7 @@ def _serialize_sales_invoice(invoice: SalesInvoice, include_details: bool = Fals
         "invoicedate": invoice.createddate.isoformat() if invoice.createddate else None,
         "customerid": invoice.customerid,
         "customername": invoice.customer.customername if invoice.customer else None,
-        "totalamount": round(sum(_to_float(detail.totalamount) for detail in ordered_details), 2),
+        "totalamount": round(sum(to_float(detail.totalamount) for detail in ordered_details), 2),
         "itemcount": len(ordered_details),
     }
     if include_details:
@@ -230,6 +192,7 @@ def create_sales_invoice(
 
     db.commit()
     created_invoice = _get_sales_invoice_or_404(invoice.salesinvoiceid, db)
+    log_action(db, current_employee.employeeid, "CREATE", "SalesInvoice", invoice.salesinvoiceid, f"Tạo phiếu bán #{invoice.salesinvoiceid}")
     return _serialize_sales_invoice(created_invoice, include_details=True)
 
 
@@ -244,6 +207,7 @@ def update_sales_invoice(
     _replace_sales_invoice_details(invoice, payload, db)
     db.commit()
     updated_invoice = _get_sales_invoice_or_404(invoice_id, db)
+    log_action(db, current_employee.employeeid, "UPDATE", "SalesInvoice", invoice_id, f"Cập nhật phiếu bán #{invoice_id}")
     return _serialize_sales_invoice(updated_invoice, include_details=True)
 
 
@@ -262,3 +226,4 @@ def delete_sales_invoice(
 
     db.delete(invoice)
     db.commit()
+    log_action(db, current_employee.employeeid, "DELETE", "SalesInvoice", invoice_id, f"Xóa phiếu bán #{invoice_id}")

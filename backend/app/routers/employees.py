@@ -1,16 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.auth import decode_access_token, hash_password
-from app.database import SessionLocal
+from app.auth import hash_password
+from app.deps import get_db, require_admin, log_action
 from app.models.employee import Employee
 from app.models.role import Role
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 class EmployeePayload(BaseModel):
@@ -18,37 +16,6 @@ class EmployeePayload(BaseModel):
     username: str
     roleid: int
     password: str | None = None
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    
-    employee = db.query(Employee).filter(Employee.employeeid == int(token_data["sub"])).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found",
-        )
-    return employee
 
 
 def _serialize_employee(employee: Employee):
@@ -109,7 +76,7 @@ def _validate_employee_payload(payload: EmployeePayload, db: Session, employee_i
 
 @router.get("")
 @router.get("/", include_in_schema=False)
-def list_employees(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
+def list_employees(db: Session = Depends(get_db), current_employee: Employee = Depends(require_admin)):
     employees = db.query(Employee).join(Role, Role.roleid == Employee.roleid).all()
     return [_serialize_employee(employee) for employee in employees]
 
@@ -119,7 +86,7 @@ def list_employees(db: Session = Depends(get_db), current_employee: Employee = D
 def create_employee(
     payload: EmployeePayload,
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     employee_name, username, _ = _validate_employee_payload(payload, db)
 
@@ -138,17 +105,18 @@ def create_employee(
     db.add(employee)
     db.commit()
     db.refresh(employee)
+    log_action(db, current_employee.employeeid, "CREATE", "Employee", employee.employeeid, f"Thêm nhân viên '{employee_name}'")
     return _serialize_employee(employee)
 
 
 @router.get("/count")
-def count_employees(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
+def count_employees(db: Session = Depends(get_db), current_employee: Employee = Depends(require_admin)):
     count = db.query(func.count(Employee.employeeid)).scalar()
     return {"count": count or 0}
 
 
 @router.get("/{employee_id}")
-def get_employee(employee_id: int, db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
+def get_employee(employee_id: int, db: Session = Depends(get_db), current_employee: Employee = Depends(require_admin)):
     employee = _get_employee_or_404(employee_id, db)
     return _serialize_employee(employee)
 
@@ -158,7 +126,7 @@ def update_employee(
     employee_id: int,
     payload: EmployeePayload,
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     employee = _get_employee_or_404(employee_id, db)
     employee_name, username, _ = _validate_employee_payload(payload, db, employee_id=employee_id)
@@ -171,6 +139,7 @@ def update_employee(
 
     db.commit()
     db.refresh(employee)
+    log_action(db, current_employee.employeeid, "UPDATE", "Employee", employee_id, f"Cập nhật nhân viên '{employee_name}'")
     return _serialize_employee(employee)
 
 
@@ -178,7 +147,7 @@ def update_employee(
 def delete_employee(
     employee_id: int,
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     employee = _get_employee_or_404(employee_id, db)
 
@@ -188,5 +157,8 @@ def delete_employee(
             detail="Cannot delete the current logged in employee",
         )
 
+    deleted_name = employee.employeename
+    deleted_id = employee.employeeid
     db.delete(employee)
     db.commit()
+    log_action(db, current_employee.employeeid, "DELETE", "Employee", deleted_id, f"Xóa nhân viên '{deleted_name}'")

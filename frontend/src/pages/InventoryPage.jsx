@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { buildApiUrl } from "../lib/api";
+import { fetchJson as _fetchJson } from "../lib/fetchJson";
+import { formatCurrency, formatQuantity } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyForm = () => ({
@@ -10,15 +11,7 @@ const emptyForm = () => ({
     description: "",
 });
 
-function formatCurrency(value) {
-    return Number(value || 0).toLocaleString("vi-VN");
-}
-
-function formatQuantity(value) {
-    return Number(value || 0).toLocaleString("vi-VN");
-}
-
-function InventoryPage({ token }) {
+function InventoryPage({ token, readOnly = false }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -32,30 +25,7 @@ function InventoryPage({ token }) {
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
 
-    const fetchJson = async (path, options = {}) => {
-        const response = await fetch(buildApiUrl(path), {
-            ...options,
-            headers: {
-                Authorization: `Bearer ${authToken}`,
-                "Content-Type": "application/json",
-                ...(options.headers || {}),
-            },
-        });
-
-        if (!response.ok) {
-            let detail = "Yêu cầu thất bại";
-            try {
-                const payload = await response.json();
-                detail = payload.detail || detail;
-            } catch {
-                detail = response.statusText || detail;
-            }
-            throw new Error(detail);
-        }
-
-        if (response.status === 204) return null;
-        return response.json();
-    };
+    const fetchJson = (path, options) => _fetchJson(authToken, path, options);
 
     const loadBaseData = async () => {
         const [productData, categoryData] = await Promise.all([
@@ -207,7 +177,7 @@ function InventoryPage({ token }) {
                             <h3 className="text-2xl font-semibold text-stone-800">Quản lý kho trang sức</h3>
                             <p className="mt-1 text-sm text-stone-500">CRUD cơ bản cho sản phẩm đang có trong kho.</p>
                         </div>
-                        <button type="button" onClick={openCreateView} className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400">Thêm sản phẩm</button>
+                        <button type="button" onClick={openCreateView} className={`rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 hover:bg-amber-400${readOnly ? " hidden" : ""}`}>Thêm sản phẩm</button>
                     </div>
 
                     <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_240px_auto_auto] md:items-end">
@@ -250,14 +220,14 @@ function InventoryPage({ token }) {
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Giá mua</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">ĐVT</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mô tả</th>
-                                        <th className="px-6 py-3 text-right text-xs font-semibold uppercase text-stone-600">Tác vụ</th>
+                                        {!readOnly && <th className="px-6 py-3 text-right text-xs font-semibold uppercase text-stone-600">Tác vụ</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-stone-200">
                                     {loading ? (
-                                        <tr><td colSpan="8" className="px-6 py-5 text-center text-stone-400">Đang tải...</td></tr>
+                                        <tr><td colSpan={readOnly ? "7" : "8"} className="px-6 py-5 text-center text-stone-400">Đang tải...</td></tr>
                                     ) : filteredProducts.length === 0 ? (
-                                        <tr><td colSpan="8" className="px-6 py-5 text-center text-stone-400">Không có sản phẩm phù hợp bộ lọc</td></tr>
+                                        <tr><td colSpan={readOnly ? "7" : "8"} className="px-6 py-5 text-center text-stone-400">Không có sản phẩm phù hợp bộ lọc</td></tr>
                                     ) : filteredProducts.map((product) => (
                                         <tr key={product.productid} className="hover:bg-stone-50">
                                             <td className="px-6 py-4 text-sm text-stone-800">{product.productid}</td>
@@ -267,12 +237,12 @@ function InventoryPage({ token }) {
                                             <td className="px-6 py-4 text-sm text-stone-600">{formatCurrency(product.purchaseprice)}đ</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{product.unitofmeasure || "-"}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{product.description || "-"}</td>
-                                            <td className="px-6 py-4">
+                                            {!readOnly && <td className="px-6 py-4">
                                                 <div className="flex justify-end gap-2">
                                                     <button type="button" onClick={() => openEditView(product)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50">Sửa</button>
                                                     <button type="button" onClick={() => handleDelete(product.productid)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
                                                 </div>
-                                            </td>
+                                            </td>}
                                         </tr>
                                     ))}
                                 </tbody>

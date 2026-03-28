@@ -9,6 +9,7 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [token, setToken] = useState(() => localStorage.getItem("access_token") || "");
   const [employeeName, setEmployeeName] = useState(() => localStorage.getItem("employee_name") || "");
+  const [roleName, setRoleName] = useState(() => localStorage.getItem("role_name") || "");
 
   const checkProfile = async () => {
     if (!token) {
@@ -33,14 +34,19 @@ function App() {
       const data = await res.json();
       setEmployeeName(data.employeename || "");
       localStorage.setItem("employee_name", data.employeename || "");
+      const role = data.rolename || "Employee";
+      setRoleName(role);
+      localStorage.setItem("role_name", role);
       setStatus(`Xin chào ${data.employeename} (role ${data.roleid})`);
     } catch (err) {
       if (err.status === 401) {
         setStatus("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         localStorage.removeItem("access_token");
         localStorage.removeItem("employee_name");
+        localStorage.removeItem("role_name");
         setToken("");
         setEmployeeName("");
+        setRoleName("");
       } else {
         setStatus("Không thể xác thực phiên với máy chủ. Dữ liệu có thể chưa tải được.");
       }
@@ -54,11 +60,13 @@ function App() {
     checkProfile();
   }, [token]);
 
-  const handleLoginSuccess = ({ accessToken, employeeName: name }) => {
+  const handleLoginSuccess = ({ accessToken, employeeName: name, roleName: role }) => {
     localStorage.setItem("access_token", accessToken);
     localStorage.setItem("employee_name", name);
+    localStorage.setItem("role_name", role || "Employee");
     setToken(accessToken);
     setEmployeeName(name);
+    setRoleName(role || "Employee");
     setStatus("Đăng nhập thành công");
     setAuthChecked(false);
   };
@@ -66,8 +74,10 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("employee_name");
+    localStorage.removeItem("role_name");
     setToken("");
     setEmployeeName("");
+    setRoleName("");
     setStatus(null);
     setAuthChecked(true);
   };
@@ -84,7 +94,7 @@ function App() {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
-  return <Dashboard token={token} employeeName={employeeName} onLogout={handleLogout} onAuthError={handleLogout} />;
+  return <Dashboard token={token} employeeName={employeeName} roleName={roleName} onLogout={handleLogout} onAuthError={handleLogout} />;
 }
 
 export default App;

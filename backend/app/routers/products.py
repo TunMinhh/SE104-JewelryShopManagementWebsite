@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import decode_access_token
-from app.database import SessionLocal
+from app.deps import get_db, get_current_employee, require_admin, log_action
 from app.models.product import Product
 from app.models.employee import Employee
 from app.models.productcategory import ProductCategory
@@ -13,7 +11,6 @@ from app.models.purchaseinvoicedetail import PurchaseInvoiceDetail
 from app.models.salesinvoicedetail import SalesInvoiceDetail
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 class ProductPayload(BaseModel):
@@ -22,37 +19,6 @@ class ProductPayload(BaseModel):
     purchaseprice: float = Field(ge=0)
     unitofmeasure: str
     description: str | None = None
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_current_employee(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    
-    token_data = decode_access_token(credentials.credentials)
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    
-    employee = db.query(Employee).filter(Employee.employeeid == int(token_data["sub"])).first()
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found",
-        )
-    return employee
 
 
 def _build_quantity_map(query_results):
@@ -180,7 +146,7 @@ def list_products(db: Session = Depends(get_db), current_employee: Employee = De
 def create_product(
     payload: ProductPayload,
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     product_name, unit_of_measure, description, _ = _validate_product_payload(payload, db)
 
@@ -195,6 +161,7 @@ def create_product(
     db.commit()
     db.refresh(product)
     created_product = _get_product_or_404(product.productid, db)
+    log_action(db, current_employee.employeeid, "CREATE", "Product", product.productid, f"Thêm sản phẩm '{product_name}'")
     return _serialize_product(created_product, _get_current_quantity(db, created_product.productid))
 
 
@@ -215,7 +182,7 @@ def update_product(
     product_id: int,
     payload: ProductPayload,
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     product = _get_product_or_404(product_id, db)
     product_name, unit_of_measure, description, _ = _validate_product_payload(payload, db, product_id=product_id)
@@ -229,6 +196,7 @@ def update_product(
     db.commit()
     db.refresh(product)
     updated_product = _get_product_or_404(product_id, db)
+    log_action(db, current_employee.employeeid, "UPDATE", "Product", product_id, f"Cập nhật sản phẩm '{product_name}'")
     return _serialize_product(updated_product, _get_current_quantity(db, product_id))
 
 
@@ -236,7 +204,7 @@ def update_product(
 def delete_product(
     product_id: int,
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(get_current_employee),
+    current_employee: Employee = Depends(require_admin),
 ):
     product = _get_product_or_404(product_id, db)
 
@@ -246,5 +214,8 @@ def delete_product(
             detail="Cannot delete product that already appears in invoices",
         )
 
+    deleted_name = product.productname
+    deleted_id = product.productid
     db.delete(product)
     db.commit()
+    log_action(db, current_employee.employeeid, "DELETE", "Product", deleted_id, f"Xóa sản phẩm '{deleted_name}'")

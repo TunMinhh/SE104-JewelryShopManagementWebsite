@@ -33,6 +33,7 @@ function Login({ onLoginSuccess }) {
             onLoginSuccess({
                 accessToken: data.access_token,
                 employeeName: data.employeename,
+                roleName: data.rolename,
             });
         } catch (err) {
             if (err.name === "AbortError") {
