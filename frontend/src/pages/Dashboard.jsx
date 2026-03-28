@@ -1,0 +1,376 @@
+import { useState, useEffect } from "react";
+import { buildApiUrl } from "../lib/api";
+import EmployeesPage from "./EmployeesPage";
+import CustomersPage from "./CustomersPage";
+import InventoryPage from "./InventoryPage";
+import InventoryReportPage from "./InventoryReportPage";
+import SalesInvoicesPage from "./SalesInvoicesPage";
+import PurchaseInvoicesPage from "./PurchaseInvoicesPage";
+import ServiceInvoicesPage from "./ServiceInvoicesPage";
+import AuditLogPage from "./AuditLogPage";
+
+function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, token, roleName = "Employee" }) {
+    // State quản lý tab đang được chọn
+    const [activeTab, setActiveTab] = useState(roleName === "Admin" ? "overview" : "customers");
+    // State quản lý đóng/mở sidebar trên mobile
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    // State cho dữ liệu từ backend
+    const [stats, setStats] = useState({
+        salesCount: 0,
+        servicesCount: 0,
+        customersCount: 0,
+        salesTotal: 0,
+        trendPeriodDays: 30,
+        trends: {
+            salesTotal: null,
+            salesCount: null,
+            servicesCount: null,
+            customersCount: null,
+        },
+    });
+    const [recentOrders, setRecentOrders] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
+
+    const handleUnauthorized = () => {
+        setErrorMessage("Máy chủ từ chối yêu cầu ở màn hình này. Phiên đăng nhập vẫn được giữ để bạn có thể thử lại.");
+    };
+
+    const buildRecentOrders = (salesData, days = 7) => {
+        const today = new Date();
+        const startDate = new Date(today);
+        startDate.setHours(0, 0, 0, 0);
+        startDate.setDate(startDate.getDate() - (days - 1));
+
+        return salesData
+            .filter((invoice) => {
+                if (!invoice?.invoicedate) return false;
+                const invoiceDate = new Date(invoice.invoicedate);
+                invoiceDate.setHours(0, 0, 0, 0);
+                return invoiceDate >= startDate && invoiceDate <= today;
+            })
+            .sort((left, right) => {
+                const leftTime = new Date(left.invoicedate).getTime();
+                const rightTime = new Date(right.invoicedate).getTime();
+                if (rightTime !== leftTime) {
+                    return rightTime - leftTime;
+                }
+                return Number(right.invoiceid || 0) - Number(left.invoiceid || 0);
+            });
+    };
+
+    // Hàm fetch dữ liệu từ backend
+    const fetchData = async () => {
+        if (!token) return;
+        
+        setLoading(true);
+        setErrorMessage("");
+        try {
+            const headers = {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+            };
+
+            // Lấy stats
+            const [salesResponse, servicesResponse, customersResponse, trendsResponse] = await Promise.all([
+                fetch(buildApiUrl("/invoices/sales"), { headers }),
+                fetch(buildApiUrl("/service-invoices/count"), { headers }),
+                fetch(buildApiUrl("/customers/count"), { headers }),
+                fetch(buildApiUrl("/dashboard/trends?days=30"), { headers }),
+            ]);
+
+            let salesData = [];
+            let servicesCount = 0;
+            let customersCount = 0;
+            let totalSales = 0;
+            let trends = {
+                salesTotal: null,
+                salesCount: null,
+                servicesCount: null,
+                customersCount: null,
+            };
+            let trendPeriodDays = 30;
+
+            const responses = [salesResponse, servicesResponse, customersResponse, trendsResponse];
+            if (responses.some((response) => response.status === 401)) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (salesResponse.ok) {
+                salesData = await salesResponse.json();
+                totalSales = salesData.reduce((sum, inv) => sum + (inv.totalamount || 0), 0);
+                setRecentOrders(buildRecentOrders(salesData, 7));
+            }
+
+            if (servicesResponse.ok) {
+                const svcData = await servicesResponse.json();
+                servicesCount = svcData.count || 0;
+            }
+
+            if (customersResponse.ok) {
+                const custData = await customersResponse.json();
+                customersCount = custData.count || 0;
+            }
+
+            if (trendsResponse.ok) {
+                const trendData = await trendsResponse.json();
+                trendPeriodDays = trendData.period_days || 30;
+                trends = {
+                    salesTotal: trendData.sales_total?.change_percent ?? null,
+                    salesCount: trendData.sales_count?.change_percent ?? null,
+                    servicesCount: trendData.services_count?.change_percent ?? null,
+                    customersCount: trendData.customers_count?.change_percent ?? null,
+                };
+            }
+
+            setStats({
+                salesCount: salesData.length,
+                servicesCount: servicesCount,
+                customersCount: customersCount,
+                salesTotal: totalSales,
+                trendPeriodDays,
+                trends,
+            });
+
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            setErrorMessage("Không thể tải dữ liệu từ máy chủ.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch data khi component mount hoặc tab thay đổi
+    useEffect(() => {
+        fetchData();
+    }, [activeTab, token]);
+
+    // Danh sách các menu chức năng
+    const menuItems = [
+        { id: "overview", name: "Tổng quan", roles: ["Admin"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+        )},
+        { id: "employees", name: "Quản lý nhân viên", roles: ["Admin"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+        )},
+        { id: "customers", name: "Quản lý khách hàng", roles: ["Admin", "Employee"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        )},
+        { id: "inventory", name: "Quản lý kho trang sức", roles: ["Admin", "Employee"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+        )},
+        { id: "purchases", name: "Quản lý phiếu mua", roles: ["Admin", "Employee"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        )},
+        { id: "sales", name: "Quản lý phiếu bán", roles: ["Admin", "Employee"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        )},
+        { id: "services", name: "Quản lý phiếu dịch vụ", roles: ["Admin", "Employee"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"></path></svg>
+        )},
+        { id: "inventory-report", name: "Báo cáo tồn kho", roles: ["Admin"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-6m3 6V7m3 10v-4m4 6H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2z"></path></svg>
+        )},
+        { id: "audit-log", name: "Nhật ký hoạt động", roles: ["Admin"], icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        )},
+    ];
+
+    const visibleMenuItems = menuItems.filter((item) => item.roles.includes(roleName));
+
+    const formatTrendLabel = (trend) => {
+        if (trend === null || trend === undefined) return "N/A";
+        if (trend === 0) return "0%";
+        return `${trend > 0 ? "+" : ""}${trend}%`;
+    };
+
+    const getTrendBadgeClass = (trend) => {
+        if (trend === null || trend === undefined) {
+            return "bg-stone-100 text-stone-500";
+        }
+        if (trend >= 0) {
+            return "bg-emerald-50 text-emerald-700";
+        }
+        return "bg-red-50 text-red-700";
+    };
+
+    return (
+        <div className="flex h-screen bg-stone-50 font-sans overflow-hidden">
+            {/* Overlay cho Mobile */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-stone-900/50 z-20 lg:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                ></div>
+            )}
+
+            {/* Sidebar */}
+            <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-72 bg-stone-900 text-stone-300 transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} flex flex-col`}>
+                <div className="flex items-center justify-center h-20 border-b border-stone-800">
+                    <h1 className="text-2xl font-serif text-amber-400 tracking-wider">MIXI JEWELRY</h1>
+                </div>
+
+                <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
+                    {visibleMenuItems.map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => {
+                                setActiveTab(item.id);
+                                setIsSidebarOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                                activeTab === item.id
+                                    ? "bg-amber-500/10 text-amber-400 font-medium"
+                                    : "hover:bg-stone-800 hover:text-white"
+                            }`}
+                        >
+                            {item.icon}
+                            <span>{item.name}</span>
+                        </button>
+                    ))}
+                </nav>
+
+                <div className="p-4 border-t border-stone-800">
+                    <button
+                        onClick={onLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-stone-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        <span>Đăng xuất</span>
+                    </button>
+                </div>
+            </aside>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                {/* Header */}
+                <header className="h-20 bg-white border-b border-stone-200 flex items-center justify-between px-6 lg:px-10 z-10">
+                    <div className="flex items-center gap-4">
+                        <button 
+                            className="lg:hidden p-2 text-stone-500 hover:bg-stone-100 rounded-lg"
+                            onClick={() => setIsSidebarOpen(true)}
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        </button>
+                        <h2 className="text-xl font-semibold text-stone-800 hidden sm:block">
+                            {visibleMenuItems.find(m => m.id === activeTab)?.name}
+                        </h2>
+                    </div>
+
+                    <div className="flex items-center gap-5">
+                        <div className="w-px h-8 bg-stone-200 hidden sm:block"></div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold border border-amber-200">
+                                {employeeName.charAt(0)}
+                            </div>
+                            <div className="hidden sm:block text-sm">
+                                <p className="font-semibold text-stone-800">{employeeName}</p>
+                                <p className="text-stone-500 text-xs">{roleName === "Admin" ? "Quản trị viên" : "Nhân viên"}</p>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Dashboard Body / Content */}
+                <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+                    {errorMessage ? (
+                        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {errorMessage}
+                        </div>
+                    ) : null}
+                    {activeTab === "overview" ? (
+                        <div className="space-y-6">
+                            {/* Thống kê nhanh */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {[
+                                    { title: "Tổng doanh thu bán", value: `${(stats.salesTotal / 1000000).toFixed(1)}M`, trend: stats.trends.salesTotal },
+                                    { title: "Đơn hàng bán", value: stats.salesCount, trend: stats.trends.salesCount },
+                                    { title: "Phiếu dịch vụ", value: stats.servicesCount, trend: stats.trends.servicesCount },
+                                    { title: "Khách hàng", value: stats.customersCount, trend: stats.trends.customersCount },
+                                ].map((stat, idx) => (
+                                    <div key={idx} className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm">
+                                        <h3 className="text-stone-500 text-sm font-medium mb-2">{stat.title}</h3>
+                                        <div className="flex items-end justify-between">
+                                            <span className="text-2xl font-bold text-stone-800">{loading && activeTab === "overview" ? "..." : stat.value}</span>
+                                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-lg ${getTrendBadgeClass(stat.trend)}`}>
+                                                {loading && activeTab === "overview" ? "..." : formatTrendLabel(stat.trend)}
+                                            </span>
+                                        </div>
+                                        <p className="mt-2 text-xs text-stone-400">So với {stats.trendPeriodDays} ngày trước</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm min-h-[300px]">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-stone-700 font-semibold">Danh sách đơn hàng 7 ngày gần nhất</h3>
+                                    <span className="text-xs text-stone-400">Sắp xếp mới nhất trước</span>
+                                </div>
+
+                                {loading && activeTab === "overview" ? (
+                                    <div className="h-56 flex items-center justify-center text-stone-400">Đang tải danh sách đơn hàng...</div>
+                                ) : recentOrders.length === 0 ? (
+                                    <div className="h-56 flex items-center justify-center text-stone-400">Không có đơn hàng nào trong 7 ngày gần nhất</div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[720px]">
+                                            <thead className="border-b border-stone-200 text-left">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Mã đơn</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Khách hàng</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Ngày lập</th>
+                                                    <th className="px-4 py-3 text-xs font-semibold uppercase text-stone-500">Số mặt hàng</th>
+                                                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-stone-500">Tổng tiền</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-stone-200">
+                                                {recentOrders.map((order) => (
+                                                    <tr key={order.invoiceid} className="hover:bg-stone-50">
+                                                        <td className="px-4 py-4 text-sm font-semibold text-stone-800">#{order.invoiceid}</td>
+                                                        <td className="px-4 py-4 text-sm text-stone-700">{order.customername || `KH ${order.customerid}`}</td>
+                                                        <td className="px-4 py-4 text-sm text-stone-600">{new Date(order.invoicedate).toLocaleDateString("vi-VN")}</td>
+                                                        <td className="px-4 py-4 text-sm text-stone-600">{order.itemcount}</td>
+                                                        <td className="px-4 py-4 text-right text-sm font-medium text-stone-800">{Number(order.totalamount || 0).toLocaleString("vi-VN")}đ</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : activeTab === "employees" ? (
+                        <EmployeesPage token={token} />
+                    ) : activeTab === "customers" ? (
+                        <CustomersPage token={token} />
+                    ) : activeTab === "inventory" ? (
+                        <InventoryPage token={token} readOnly={roleName !== "Admin"} />
+                    ) : activeTab === "inventory-report" ? (
+                        <InventoryReportPage token={token} />
+                    ) : activeTab === "sales" ? (
+                        <SalesInvoicesPage token={token} />
+                    ) : activeTab === "purchases" ? (
+                        <PurchaseInvoicesPage token={token} />
+                    ) : activeTab === "services" ? (
+                        <ServiceInvoicesPage token={token} />
+                    ) : activeTab === "audit-log" ? (
+                        <AuditLogPage token={token} />
+                    ) : (
+                        // Placeholder cho tab khác (purchases)
+                        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm h-full min-h-[500px] flex flex-col items-center justify-center text-stone-400">
+                            {visibleMenuItems.find(m => m.id === activeTab)?.icon}
+                            <h3 className="mt-4 text-lg font-medium text-stone-600">
+                                Màn hình {visibleMenuItems.find(m => m.id === activeTab)?.name}
+                            </h3>
+                            <p className="mt-2 text-sm text-stone-400">Component thực tế của bạn sẽ được render tại đây</p>
+                        </div>
+                    )}
+                </main>
+            </div>
+        </div>
+    );
+}
+
+export default Dashboard;

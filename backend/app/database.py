@@ -1,14 +1,9 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "postgresql://postgres:Toiyeucnpm%402005@db.hyfrpvhuqhvdbrwgbsmp.supabase.co:5432/postgres"
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:cotuanminh2005@localhost:5432/JewelryDatabase"
 
-engine = create_engine(DATABASE_URL)
-
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

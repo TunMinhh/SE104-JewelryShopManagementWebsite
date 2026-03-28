@@ -40,7 +40,7 @@
 * **Công cụ:** VS Code, Git/GitHub
 * **Frontend**: HTML, CSS, Javascript (React/Tailwind)
 * **Backend**: Python (FastAPI)
-* **Database**: PostgreSQL (Supabase)
+* **Database**: PostgreSQL
 
 ## CHỨC NĂNG HỆ THỐNG
 <a name="chucnang"></a>
