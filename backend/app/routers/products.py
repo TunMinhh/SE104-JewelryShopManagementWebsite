@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.deps import get_db, get_current_employee, require_admin, log_action
+from app.deps import format_code, get_db, get_current_employee, require_admin, log_action
 from app.models.product import Product
 from app.models.employee import Employee
 from app.models.productcategory import ProductCategory
@@ -17,7 +17,6 @@ class ProductPayload(BaseModel):
     productname: str
     categoryid: int
     purchaseprice: float = Field(ge=0)
-    unitofmeasure: str
     description: str | None = None
 
 
@@ -73,11 +72,13 @@ def _get_current_quantity(db: Session, product_id: int):
 def _serialize_product(product: Product, current_quantity: float = 0):
     return {
         "productid": product.productid,
+        "productcode": format_code("SP", product.productid),
         "productname": product.productname,
         "categoryid": product.productcategoryid,
+        "categorycode": format_code("DM", product.productcategoryid),
         "categoryname": product.category.categoryname if product.category else None,
         "purchaseprice": float(product.purchaseprice) if product.purchaseprice else 0,
-        "unitofmeasure": product.unitofmeasure,
+        "unitofmeasure": product.category.unitofmeasure if product.category else None,
         "description": product.description,
         "currentquantity": current_quantity,
         "recommendedprice": float(
@@ -98,7 +99,6 @@ def _get_product_or_404(product_id: int, db: Session):
 
 def _validate_product_payload(payload: ProductPayload, db: Session, product_id: int | None = None):
     product_name = payload.productname.strip()
-    unit_of_measure = payload.unitofmeasure.strip()
     description = payload.description.strip() if payload.description else None
 
     if not product_name:
@@ -107,17 +107,17 @@ def _validate_product_payload(payload: ProductPayload, db: Session, product_id: 
             detail="Product name is required",
         )
 
-    if not unit_of_measure:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unit of measure is required",
-        )
-
     category = db.query(ProductCategory).filter(ProductCategory.productcategoryid == payload.categoryid).first()
     if not category:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Product category not found",
+        )
+
+    if not category.unitofmeasure:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product category unit of measure is required",
         )
 
     product_query = db.query(Product).filter(Product.productname == product_name)
@@ -130,7 +130,7 @@ def _validate_product_payload(payload: ProductPayload, db: Session, product_id: 
             detail="Product name already exists",
         )
 
-    return product_name, unit_of_measure, description, category
+    return product_name, description, category
 
 
 @router.get("")
@@ -148,13 +148,12 @@ def create_product(
     db: Session = Depends(get_db),
     current_employee: Employee = Depends(require_admin),
 ):
-    product_name, unit_of_measure, description, _ = _validate_product_payload(payload, db)
+    product_name, description, _ = _validate_product_payload(payload, db)
 
     product = Product(
         productname=product_name,
         productcategoryid=payload.categoryid,
         purchaseprice=payload.purchaseprice,
-        unitofmeasure=unit_of_measure,
         description=description,
     )
     db.add(product)
@@ -185,12 +184,11 @@ def update_product(
     current_employee: Employee = Depends(require_admin),
 ):
     product = _get_product_or_404(product_id, db)
-    product_name, unit_of_measure, description, _ = _validate_product_payload(payload, db, product_id=product_id)
+    product_name, description, _ = _validate_product_payload(payload, db, product_id=product_id)
 
     product.productname = product_name
     product.productcategoryid = payload.categoryid
     product.purchaseprice = payload.purchaseprice
-    product.unitofmeasure = unit_of_measure
     product.description = description
 
     db.commit()

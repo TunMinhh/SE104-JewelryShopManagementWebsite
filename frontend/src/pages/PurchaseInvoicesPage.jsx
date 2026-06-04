@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import { displayCode, formatCode } from "../lib/displayCodes";
 import { formatCurrency, formatQuantity, escapeHtml } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
@@ -142,7 +143,7 @@ function PurchaseInvoicesPage({ token }) {
 <html lang="vi">
 <head>
     <meta charset="UTF-8" />
-    <title>Phiếu mua hàng ${invoice.invoiceid}</title>
+    <title>Phiếu mua hàng ${escapeHtml(displayCode(invoice, "invoicecode", "PM", "invoiceid"))}</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 32px; color: #1c1917; }
         h1 { margin: 0 0 8px; font-size: 28px; }
@@ -156,9 +157,9 @@ function PurchaseInvoicesPage({ token }) {
 <body>
     <h1>PHIẾU MUA HÀNG</h1>
     <div class="meta">
-        <div>Mã phiếu: ${escapeHtml(invoice.invoiceid)}</div>
+        <div>Mã phiếu: ${escapeHtml(displayCode(invoice, "invoicecode", "PM", "invoiceid"))}</div>
         <div>Ngày lập: ${escapeHtml(new Date(invoice.invoicedate).toLocaleDateString("vi-VN"))}</div>
-        <div>Nhà cung cấp: ${escapeHtml(invoice.suppliername || `NCC ${invoice.supplierid}`)}</div>
+        <div>Nhà cung cấp: ${escapeHtml(invoice.suppliername || displayCode(invoice, "suppliercode", "NCC", "supplierid"))}</div>
         <div>Địa chỉ: ${escapeHtml(invoice.supplieraddress || "-")}</div>
         <div>Số điện thoại: ${escapeHtml(invoice.supplierphonenumber || "-")}</div>
     </div>
@@ -232,7 +233,7 @@ function PurchaseInvoicesPage({ token }) {
     };
 
     const handleDelete = async (invoiceId) => {
-        const accepted = window.confirm(`Bạn có chắc chắn muốn xóa phiếu mua #${invoiceId}?`);
+        const accepted = window.confirm(`Bạn có chắc chắn muốn xóa phiếu mua ${formatCode("PM", invoiceId)}?`);
         if (!accepted) return;
 
         setLoading(true);
@@ -261,7 +262,7 @@ function PurchaseInvoicesPage({ token }) {
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = `phieu-mua-${invoice.invoiceid}.html`;
+            link.download = `phieu-mua-${displayCode(invoice, "invoicecode", "PM", "invoiceid")}.html`;
             document.body.appendChild(link);
             link.click();
             link.remove();
@@ -357,8 +358,8 @@ function PurchaseInvoicesPage({ token }) {
     const filteredInvoices = invoices.filter((invoice) => {
         const matchesSearch = !normalizedSearchTerm || [
             String(invoice.invoiceid || ""),
+            invoice.invoicecode || "",
             invoice.suppliername || "",
-            invoice.invoicedate || "",
         ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
 
         const matchesSupplier = supplierFilter === "all" || String(invoice.supplierid) === supplierFilter;
@@ -534,8 +535,8 @@ function PurchaseInvoicesPage({ token }) {
                             ) : (
                                 filteredInvoices.map((invoice) => (
                                     <tr key={invoice.invoiceid} className="hover:bg-stone-50 align-top">
-                                        <td className="px-6 py-4 text-sm font-semibold text-stone-800">#{invoice.invoiceid}</td>
-                                        <td className="px-6 py-4 text-sm text-stone-600">{invoice.suppliername || `NCC ${invoice.supplierid}`}</td>
+                                        <td className="px-6 py-4 text-sm font-semibold text-stone-800">{displayCode(invoice, "invoicecode", "PM", "invoiceid")}</td>
+                                        <td className="px-6 py-4 text-sm text-stone-600">{invoice.suppliername || displayCode(invoice, "suppliercode", "NCC", "supplierid")}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{new Date(invoice.invoicedate).toLocaleDateString("vi-VN")}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{invoice.itemcount}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{formatCurrency(invoice.totalamount)}đ</td>
@@ -563,7 +564,7 @@ function PurchaseInvoicesPage({ token }) {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">{view === "edit" ? `Chỉnh sửa phiếu mua #${editingInvoiceId}` : "Tạo phiếu mua mới"}</h3>
+                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">{view === "edit" ? `Chỉnh sửa phiếu mua ${formatCode("PM", editingInvoiceId)}` : "Tạo phiếu mua mới"}</h3>
                     <p className="mt-1 text-sm text-stone-500">Mẫu tạo phiếu được tách riêng khỏi danh sách theo cùng cách với phiếu bán.</p>
                 </div>
             </div>
@@ -688,7 +689,7 @@ function PurchaseInvoicesPage({ token }) {
                                                     <option value="">Chọn sản phẩm</option>
                                                     {products.map((productOption) => (
                                                         <option key={productOption.productid} value={productOption.productid}>
-                                                            {productOption.productname}
+                                                            {displayCode(productOption, "productcode", "SP", "productid")} - {productOption.productname}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -756,7 +757,7 @@ function PurchaseInvoicesPage({ token }) {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">Chi tiết phiếu mua #{selectedInvoice?.invoiceid}</h3>
+                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">Chi tiết phiếu mua {displayCode(selectedInvoice, "invoicecode", "PM", "invoiceid")}</h3>
                     <p className="mt-1 text-sm text-stone-500">Xem dữ liệu đầy đủ và thao tác in/tải biểu mẫu phiếu mua hàng.</p>
                 </div>
                 {selectedInvoice ? (
@@ -773,7 +774,7 @@ function PurchaseInvoicesPage({ token }) {
                     <div className="grid gap-4 md:grid-cols-4">
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                             <div className="text-sm text-stone-500">Nhà cung cấp</div>
-                            <div className="mt-2 text-lg font-semibold text-stone-800">{selectedInvoice.suppliername || `NCC ${selectedInvoice.supplierid}`}</div>
+                            <div className="mt-2 text-lg font-semibold text-stone-800">{selectedInvoice.suppliername || displayCode(selectedInvoice, "suppliercode", "NCC", "supplierid")}</div>
                         </div>
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                             <div className="text-sm text-stone-500">Ngày lập</div>
@@ -847,3 +848,5 @@ function PurchaseInvoicesPage({ token }) {
 }
 
 export default PurchaseInvoicesPage;
+
+

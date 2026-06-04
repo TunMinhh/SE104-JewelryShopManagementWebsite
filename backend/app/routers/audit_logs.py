@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, require_admin
+from app.deps import format_code, get_db, require_admin
 from app.models.auditlog import AuditLog
 from app.models.employee import Employee
 
@@ -29,7 +29,9 @@ def list_audit_logs(
     for log in logs:
         results.append({
             "logid": log.logid,
+            "logcode": format_code("LOG", log.logid),
             "employeeid": log.employeeid,
+            "employeecode": format_code("NV", log.employeeid),
             "employeename": log.employee.employeename if log.employee else None,
             "action": log.action,
             "resource": log.resource,

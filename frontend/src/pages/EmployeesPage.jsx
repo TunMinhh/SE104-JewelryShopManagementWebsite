@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { displayCode, formatCode } from "../lib/displayCodes";
 import { fetchJson as _fetchJson } from "../lib/fetchJson";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
@@ -84,12 +85,12 @@ function EmployeesPage({ token }) {
         }
     };
 
-    const handleDelete = async (employeeId) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn xóa nhân viên #${employeeId}?`)) return;
+    const handleDelete = async (employee) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn xóa nhân viên ${displayCode(employee, "employeecode", "NV", "employeeid")}?`)) return;
         setLoading(true);
         setErrorMessage("");
         try {
-            await fetchJson(`/employees/${employeeId}`, { method: "DELETE" });
+            await fetchJson(`/employees/${employee.employeeid}`, { method: "DELETE" });
             await loadBaseData();
         } catch (error) {
             setErrorMessage(error.message || "Không thể xóa nhân viên");
@@ -145,6 +146,7 @@ function EmployeesPage({ token }) {
     const filteredEmployees = employees.filter((employee) => {
         const matchesSearch = !normalizedSearchTerm || [
             String(employee.employeeid || ""),
+            employee.employeecode || "",
             employee.employeename || "",
             employee.username || "",
             employee.rolename || "",
@@ -180,7 +182,7 @@ function EmployeesPage({ token }) {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(event) => setSearchTerm(event.target.value)}
-                                placeholder="Tìm theo ID, tên nhân viên, username hoặc vai trò"
+                                placeholder="Tìm theo mã, tên nhân viên, username hoặc vai trò"
                                 className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
                             />
                         </label>
@@ -206,7 +208,7 @@ function EmployeesPage({ token }) {
                             <table className="w-full min-w-[860px]">
                                 <thead className="bg-stone-50 border-b border-stone-200">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">ID</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mã NV</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Tên nhân viên</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Username</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Vai trò</th>
@@ -220,14 +222,14 @@ function EmployeesPage({ token }) {
                                         <tr><td colSpan="5" className="px-6 py-5 text-center text-stone-400">Không có nhân viên phù hợp bộ lọc</td></tr>
                                     ) : filteredEmployees.map((employee) => (
                                         <tr key={employee.employeeid} className="hover:bg-stone-50">
-                                            <td className="px-6 py-4 text-sm text-stone-800">{employee.employeeid}</td>
+                                            <td className="px-6 py-4 text-sm font-semibold text-stone-800">{displayCode(employee, "employeecode", "NV", "employeeid")}</td>
                                             <td className="px-6 py-4 text-sm text-stone-800">{employee.employeename}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{employee.username}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{employee.rolename || `Role ${employee.roleid}`}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex justify-end gap-2">
                                                     <button type="button" onClick={() => openEditView(employee)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50">Sửa</button>
-                                                    <button type="button" onClick={() => handleDelete(employee.employeeid)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
+                                                    <button type="button" onClick={() => handleDelete(employee)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -241,7 +243,7 @@ function EmployeesPage({ token }) {
                 <div className="space-y-6">
                     <div>
                         <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                        <h3 className="mt-3 text-2xl font-semibold text-stone-800">{editingEmployeeId ? `Chỉnh sửa nhân viên #${editingEmployeeId}` : "Tạo nhân viên mới"}</h3>
+                        <h3 className="mt-3 text-2xl font-semibold text-stone-800">{editingEmployeeId ? `Chỉnh sửa nhân viên ${formatCode("NV", editingEmployeeId)}` : "Tạo nhân viên mới"}</h3>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">

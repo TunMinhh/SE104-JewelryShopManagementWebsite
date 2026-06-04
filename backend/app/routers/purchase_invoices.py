@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
-from app.deps import get_db, get_current_employee, to_float, log_action
+from app.deps import format_code, get_db, get_current_employee, to_float, log_action
 from app.models.employee import Employee
 from app.models.product import Product
 from app.models.purchaseinvoicedetail import PurchaseInvoiceDetail
@@ -43,9 +43,10 @@ def _serialize_purchase_invoice_detail(detail: PurchaseInvoiceDetail):
     return {
         "purchaseinvoicedetailid": detail.purchaseinvoicedetailid,
         "productid": detail.productid,
+        "productcode": format_code("SP", detail.productid),
         "productname": product.productname if product else None,
         "categoryname": category.categoryname if category else None,
-        "unitofmeasure": product.unitofmeasure if product else None,
+        "unitofmeasure": category.unitofmeasure if category else None,
         "quantity": int(detail.quantity) if detail.quantity is not None else 0,
         "purchaseprice": to_float(detail.purchaseprice),
         "totalamount": to_float(detail.totalamount),
@@ -56,8 +57,10 @@ def _serialize_purchase_invoice(invoice: PurchaseInvoice, include_details: bool 
     ordered_details = sorted(invoice.details, key=lambda detail: detail.purchaseinvoicedetailid or 0)
     payload = {
         "invoiceid": invoice.purchaseinvoiceid,
+        "invoicecode": format_code("PM", invoice.purchaseinvoiceid),
         "invoicedate": invoice.createddate.isoformat() if invoice.createddate else None,
         "supplierid": invoice.supplierid,
+        "suppliercode": format_code("NCC", invoice.supplierid),
         "suppliername": invoice.supplier.suppliername if invoice.supplier else None,
         "supplieraddress": invoice.supplier.address if invoice.supplier else None,
         "supplierphonenumber": invoice.supplier.phonenumber if invoice.supplier else None,
@@ -173,7 +176,7 @@ def create_purchase_invoice(
 
     db.commit()
     created_invoice = _get_purchase_invoice_or_404(invoice.purchaseinvoiceid, db)
-    log_action(db, current_employee.employeeid, "CREATE", "PurchaseInvoice", invoice.purchaseinvoiceid, f"Tạo phiếu mua #{invoice.purchaseinvoiceid}")
+    log_action(db, current_employee.employeeid, "CREATE", "PurchaseInvoice", invoice.purchaseinvoiceid, f"Tạo phiếu mua {format_code('PM', invoice.purchaseinvoiceid)}")
     return _serialize_purchase_invoice(created_invoice, include_details=True)
 
 
@@ -188,7 +191,7 @@ def update_purchase_invoice(
     _replace_purchase_invoice_details(invoice, payload, db)
     db.commit()
     updated_invoice = _get_purchase_invoice_or_404(invoice_id, db)
-    log_action(db, current_employee.employeeid, "UPDATE", "PurchaseInvoice", invoice_id, f"Cập nhật phiếu mua #{invoice_id}")
+    log_action(db, current_employee.employeeid, "UPDATE", "PurchaseInvoice", invoice_id, f"Cập nhật phiếu mua {format_code('PM', invoice_id)}")
     return _serialize_purchase_invoice(updated_invoice, include_details=True)
 
 
@@ -207,4 +210,4 @@ def delete_purchase_invoice(
 
     db.delete(invoice)
     db.commit()
-    log_action(db, current_employee.employeeid, "DELETE", "PurchaseInvoice", invoice_id, f"Xóa phiếu mua #{invoice_id}")
+    log_action(db, current_employee.employeeid, "DELETE", "PurchaseInvoice", invoice_id, f"Xóa phiếu mua {format_code('PM', invoice_id)}")

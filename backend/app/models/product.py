@@ -12,7 +12,6 @@ class Product(Base):
 
     purchaseprice = Column(Numeric)
     description = Column(String)
-    unitofmeasure = Column(String)
     imageurl = Column(String)
 
     category = relationship("ProductCategory", back_populates="products")

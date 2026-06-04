@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import { displayCode, formatCode } from "../lib/displayCodes";
 import { formatCurrency, formatDate, escapeHtml } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
     servicetypeid: "",
-    actualprice: "",
+    extraamount: "",
     quantity: "1",
     paidamount: "",
     deliverydate: "",
@@ -138,7 +139,11 @@ function ServiceInvoicesPage({ token }) {
 
     const getLineDefaultPrice = (item) => Number(getServiceTypeById(item.servicetypeid)?.defaultserviceprice || 0);
 
-    const getLineTotal = (item) => Number(item.quantity || 0) * Number(item.actualprice || 0);
+    const getLineExtraAmount = (item) => Number(item.extraamount || 0);
+
+    const getLineActualPrice = (item) => getLineDefaultPrice(item) + getLineExtraAmount(item);
+
+    const getLineTotal = (item) => Number(item.quantity || 0) * getLineActualPrice(item);
 
     const getLineMinimumPaid = (item) => getLineTotal(item) * 0.5;
 
@@ -149,14 +154,14 @@ function ServiceInvoicesPage({ token }) {
     const formTotal = form.items.reduce((sum, item) => sum + getLineTotal(item), 0);
     const formPaidTotal = form.items.reduce((sum, item) => sum + Number(item.paidamount || 0), 0);
     const formRemainingTotal = Math.max(formTotal - formPaidTotal, 0);
-    const formStatus = form.items.length > 0 && form.items.every((item) => getLineStatus(item) === "Đã giao") ? "Đã giao" : "Chưa giao";
+    const formStatus = form.items.length > 0 && form.items.every((item) => getLineStatus(item) === "Đã giao") ? "Hoàn thành" : "Chưa hoàn thành";
 
     const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
     const filteredServiceInvoices = serviceInvoices.filter((invoice) => {
         const matchesSearch = !normalizedSearchTerm || [
             String(invoice.invoiceid || ""),
+            invoice.invoicecode || "",
             invoice.customername || "",
-            invoice.invoicedate || "",
             invoice.servicenamesummary || "",
         ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
 
@@ -196,7 +201,7 @@ function ServiceInvoicesPage({ token }) {
 <html lang="vi">
 <head>
     <meta charset="UTF-8" />
-    <title>BM3 - Phiếu dịch vụ ${invoice.invoiceid}</title>
+    <title>BM3 - Phiếu dịch vụ ${escapeHtml(displayCode(invoice, "invoicecode", "PDV", "invoiceid"))}</title>
     <style>
         body { font-family: "Times New Roman", serif; padding: 16px; color: #111827; }
         table { width: 100%; border-collapse: collapse; }
@@ -218,9 +223,9 @@ function ServiceInvoicesPage({ token }) {
         <tr>
             <td colspan="2" class="meta-cell">
                 <div class="meta-grid">
-                    <div class="meta-item">Số phiếu: ${escapeHtml(invoice.invoiceid)}</div>
+                    <div class="meta-item">Số phiếu: ${escapeHtml(displayCode(invoice, "invoicecode", "PDV", "invoiceid"))}</div>
                     <div class="meta-item">Ngày lập: ${escapeHtml(formatDate(invoice.invoicedate))}</div>
-                    <div class="meta-item">Khách hàng: ${escapeHtml(invoice.customername || `KH ${invoice.customerid}`)}</div>
+                    <div class="meta-item">Khách hàng: ${escapeHtml(invoice.customername || displayCode(invoice, "customercode", "KH", "customerid"))}</div>
                     <div class="meta-item">Số điện thoại: ${escapeHtml(invoice.customerphonenumber || "-")}</div>
                     <div class="meta-item full">
                         <div>Tổng tiền: ${escapeHtml(`${formatCurrency(invoice.totalamount)} đ`)}</div>
@@ -264,9 +269,9 @@ function ServiceInvoicesPage({ token }) {
         const rowsHtml = rows.map((invoice, index) => `
             <tr>
                 <td>${index + 1}</td>
-                <td>${escapeHtml(invoice.invoiceid || "")}</td>
+                <td>${escapeHtml(displayCode(invoice, "invoicecode", "PDV", "invoiceid"))}</td>
                 <td>${escapeHtml(invoice.invoicedate ? formatDate(invoice.invoicedate) : "")}</td>
-                <td>${escapeHtml(invoice.customername || (invoice.customerid ? `KH ${invoice.customerid}` : ""))}</td>
+                <td>${escapeHtml(invoice.customername || displayCode(invoice, "customercode", "KH", "customerid"))}</td>
                 <td>${invoice.totalamount !== undefined ? escapeHtml(`${formatCurrency(invoice.totalamount)} đ`) : ""}</td>
                 <td>${invoice.totalpaid !== undefined ? escapeHtml(`${formatCurrency(invoice.totalpaid)} đ`) : ""}</td>
                 <td>${invoice.remainingamount !== undefined ? escapeHtml(`${formatCurrency(invoice.remainingamount)} đ`) : ""}</td>
@@ -362,12 +367,10 @@ function ServiceInvoicesPage({ token }) {
                 if (itemIndex !== index) return item;
 
                 if (field === "servicetypeid") {
-                    const nextServiceType = serviceTypes.find((serviceType) => String(serviceType.servicetypeid) === String(value));
-                    const defaultPrice = nextServiceType ? String(nextServiceType.defaultserviceprice || "") : "";
                     return {
                         ...item,
                         servicetypeid: value,
-                        actualprice: defaultPrice,
+                        extraamount: "",
                     };
                 }
 
@@ -445,7 +448,7 @@ function ServiceInvoicesPage({ token }) {
                 createddate: invoice.invoicedate,
                 items: invoice.details.map((detail) => ({
                     servicetypeid: String(detail.servicetypeid),
-                    actualprice: String(detail.actualprice),
+                    extraamount: String(detail.extraamount ?? Math.max(Number(detail.actualprice || 0) - Number(detail.defaultprice || 0), 0)),
                     quantity: String(detail.quantity),
                     paidamount: String(detail.paidamount),
                     deliverydate: detail.deliverydate || "",
@@ -481,7 +484,7 @@ function ServiceInvoicesPage({ token }) {
     };
 
     const handleDelete = async (invoiceId) => {
-        const accepted = window.confirm(`Bạn có chắc chắn muốn xóa phiếu dịch vụ #${invoiceId}?`);
+        const accepted = window.confirm(`Bạn có chắc chắn muốn xóa phiếu dịch vụ ${formatCode("PDV", invoiceId)}?`);
         if (!accepted) return;
 
         setLoading(true);
@@ -524,20 +527,35 @@ function ServiceInvoicesPage({ token }) {
             return;
         }
 
+        for (let index = 0; index < form.items.length; index += 1) {
+            const item = form.items[index];
+            if (!item.servicetypeid) continue;
+
+            const totalAmount = getLineTotal(item);
+            const paidAmount = Number(item.paidamount || 0);
+            const minimumPaidAmount = getLineMinimumPaid(item);
+            const serviceTypeName = getServiceTypeById(item.servicetypeid)?.servicename || `dòng ${index + 1}`;
+
+            if (totalAmount > 0 && (paidAmount < minimumPaidAmount || paidAmount > totalAmount)) {
+                setErrorMessage(`Dòng ${index + 1} - ${serviceTypeName}: Số tiền trả trước phải từ 50% đến 100% giá trị dịch vụ.`);
+                return;
+            }
+        }
+
         const hasInvalidRow = form.items.some((item) => {
             const totalAmount = getLineTotal(item);
             const minimumPaidAmount = getLineMinimumPaid(item);
             return !item.servicetypeid
                 || Number(item.quantity) <= 0
                 || !Number.isInteger(Number(item.quantity))
-                || Number(item.actualprice) <= 0
+                || getLineActualPrice(item) <= 0
                 || Number(item.paidamount || 0) < 0
                 || Number(item.paidamount || 0) < minimumPaidAmount
                 || Number(item.paidamount || 0) > totalAmount;
         });
 
         if (hasInvalidRow) {
-            setErrorMessage("Vui lòng điền loại dịch vụ, số lượng nguyên dương, đơn giá hợp lệ và số tiền trả trước phải từ 50% đến 100% thành tiền của từng dòng");
+            setErrorMessage("Vui lòng điền loại dịch vụ, số lượng nguyên dương, đơn giá hợp lệ và số tiền trả trước hợp lệ.");
             return;
         }
 
@@ -573,7 +591,8 @@ function ServiceInvoicesPage({ token }) {
                 items: form.items.map((item) => ({
                     servicetypeid: Number(item.servicetypeid),
                     quantity: Number.parseInt(item.quantity, 10),
-                    actualprice: Number(item.actualprice),
+                    extraamount: Number(item.extraamount || 0),
+                    actualprice: getLineActualPrice(item),
                     paidamount: Number(item.paidamount || 0),
                     deliverydate: getLineStatus(item) === "Đã giao" ? (item.deliverydate || getTodayDateString()) : null,
                 })),
@@ -615,7 +634,7 @@ function ServiceInvoicesPage({ token }) {
             const invoice = selectedInvoice?.invoiceid === invoiceId
                 ? selectedInvoice
                 : await fetchJson(`/service-invoices/${invoiceId}`);
-            downloadHtml(`bm3-phieu-dich-vu-${invoice.invoiceid}.html`, buildBm3Html(invoice));
+            downloadHtml(`bm3-phieu-dich-vu-${displayCode(invoice, "invoicecode", "PDV", "invoiceid")}.html`, buildBm3Html(invoice));
         } catch (error) {
             setErrorMessage(error.message || "Không thể tải phiếu dịch vụ");
         }
@@ -667,8 +686,8 @@ function ServiceInvoicesPage({ token }) {
                     <span className="text-sm font-medium text-stone-700">Lọc tình trạng</span>
                     <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400">
                         <option value="all">Tất cả tình trạng</option>
-                        <option value="Chưa giao">Chưa giao</option>
-                        <option value="Đã giao">Đã giao</option>
+                        <option value="Chưa hoàn thành">Chưa hoàn thành</option>
+                        <option value="Hoàn thành">Hoàn thành</option>
                     </select>
                 </label>
                 <div className="rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">Hiển thị {filteredServiceInvoices.length}/{serviceInvoices.length} phiếu</div>
@@ -700,8 +719,8 @@ function ServiceInvoicesPage({ token }) {
                             ) : (
                                 filteredServiceInvoices.map((invoice) => (
                                     <tr key={invoice.invoiceid} className="hover:bg-stone-50 align-top">
-                                        <td className="px-6 py-4 text-sm font-semibold text-stone-800">#{invoice.invoiceid}</td>
-                                        <td className="px-6 py-4 text-sm text-stone-700">{invoice.customername || `KH ${invoice.customerid}`}</td>
+                                        <td className="px-6 py-4 text-sm font-semibold text-stone-800">{displayCode(invoice, "invoicecode", "PDV", "invoiceid")}</td>
+                                        <td className="px-6 py-4 text-sm text-stone-700">{invoice.customername || displayCode(invoice, "customercode", "KH", "customerid")}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{formatDate(invoice.invoicedate)}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{invoice.servicenamesummary || "-"}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{invoice.itemcount}</td>
@@ -733,7 +752,7 @@ function ServiceInvoicesPage({ token }) {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">{view === "edit" ? `Chỉnh sửa phiếu dịch vụ #${editingInvoiceId}` : "Tạo phiếu dịch vụ mới"}</h3>
+                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">{view === "edit" ? `Chỉnh sửa phiếu dịch vụ ${formatCode("PDV", editingInvoiceId)}` : "Tạo phiếu dịch vụ mới"}</h3>
                     <p className="mt-1 text-sm text-stone-500">Có thể chọn khách hàng sẵn có hoặc nhập khách mới ngay trong lúc lập phiếu.</p>
                 </div>
             </div>
@@ -836,18 +855,19 @@ function ServiceInvoicesPage({ token }) {
                     <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4">
                         <div>
                             <h4 className="text-base font-semibold text-stone-800">Chi tiết dịch vụ</h4>
-                            <p className="mt-1 text-sm text-stone-500">Mỗi dòng gồm loại dịch vụ, đơn giá mặc định, đơn giá thực tế, tiền trả trước, ngày giao và trạng thái có thể chỉnh sửa.</p>
+                            <p className="mt-1 text-sm text-stone-500">Mỗi dòng gồm loại dịch vụ, đơn giá mặc định, chi phí riêng, tiền trả trước, ngày giao và trạng thái có thể chỉnh sửa.</p>
                         </div>
                         <button type="button" onClick={addLineItem} className="rounded-xl border border-stone-200 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">Thêm dòng</button>
                     </div>
 
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1460px]">
+                        <table className="w-full min-w-[1580px]">
                             <thead className="bg-stone-50 border-b border-stone-200">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">STT</th>
                                     <th className="w-[280px] px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Loại dịch vụ</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Đơn giá DV</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Chi phí riêng</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Đơn giá tính</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Số lượng</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Thành tiền</th>
@@ -871,7 +891,7 @@ function ServiceInvoicesPage({ token }) {
                                                 <option value="">Chọn loại dịch vụ</option>
                                                 {serviceTypes.map((serviceType) => (
                                                     <option key={serviceType.servicetypeid} value={serviceType.servicetypeid}>
-                                                        {serviceType.servicename}
+                                                        {displayCode(serviceType, "servicetypecode", "DV", "servicetypeid")} - {serviceType.servicename}
                                                     </option>
                                                 ))}
                                             </select>
@@ -882,11 +902,12 @@ function ServiceInvoicesPage({ token }) {
                                                 type="number"
                                                 min="0"
                                                 step="0.01"
-                                                value={item.actualprice}
-                                                onChange={(event) => updateLineItem(index, "actualprice", event.target.value)}
+                                                value={item.extraamount}
+                                                onChange={(event) => updateLineItem(index, "extraamount", event.target.value)}
                                                 className="w-36 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
                                             />
                                         </td>
+                                        <td className="px-4 py-4 text-sm font-medium text-stone-800">{formatCurrency(getLineActualPrice(item))}đ</td>
                                         <td className="px-4 py-4">
                                             <input
                                                 type="number"
@@ -951,6 +972,12 @@ function ServiceInvoicesPage({ token }) {
                         {submitting ? "Đang lưu..." : view === "edit" ? "Cập nhật phiếu dịch vụ" : "Lưu phiếu dịch vụ"}
                     </button>
                 </div>
+
+                {errorMessage ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                        {errorMessage}
+                    </div>
+                ) : null}
             </form>
         </div>
     );
@@ -960,7 +987,7 @@ function ServiceInvoicesPage({ token }) {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">Chi tiết phiếu dịch vụ #{selectedInvoice?.invoiceid}</h3>
+                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">Chi tiết phiếu dịch vụ {displayCode(selectedInvoice, "invoicecode", "PDV", "invoiceid")}</h3>
                     <p className="mt-1 text-sm text-stone-500">Xem dữ liệu đầy đủ, chỉnh sửa, xóa hoặc in phiếu dịch vụ.</p>
                 </div>
                 {selectedInvoice ? (
@@ -978,7 +1005,7 @@ function ServiceInvoicesPage({ token }) {
                     <div className="grid gap-4 md:grid-cols-5">
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                             <div className="text-sm text-stone-500">Khách hàng</div>
-                            <div className="mt-2 text-lg font-semibold text-stone-800">{selectedInvoice.customername || `KH ${selectedInvoice.customerid}`}</div>
+                            <div className="mt-2 text-lg font-semibold text-stone-800">{selectedInvoice.customername || displayCode(selectedInvoice, "customercode", "KH", "customerid")}</div>
                         </div>
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                             <div className="text-sm text-stone-500">Ngày lập</div>
@@ -1011,12 +1038,13 @@ function ServiceInvoicesPage({ token }) {
 
                     <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1100px]">
+                            <table className="w-full min-w-[1220px]">
                                 <thead className="bg-stone-50 border-b border-stone-200">
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">STT</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Loại dịch vụ</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Đơn giá DV</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Chi phí riêng</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Đơn giá tính</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Số lượng</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Thành tiền</th>
@@ -1032,6 +1060,7 @@ function ServiceInvoicesPage({ token }) {
                                             <td className="px-4 py-4 text-sm text-stone-700">{index + 1}</td>
                                             <td className="px-4 py-4 text-sm text-stone-700">{detail.servicename}</td>
                                             <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(detail.defaultprice)}đ</td>
+                                            <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(detail.extraamount || 0)}đ</td>
                                             <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(detail.actualprice)}đ</td>
                                             <td className="px-4 py-4 text-sm text-stone-600">{detail.quantity}</td>
                                             <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(detail.totalamount)}đ</td>
@@ -1054,7 +1083,7 @@ function ServiceInvoicesPage({ token }) {
 
     return (
         <div className="space-y-4">
-            {errorMessage ? (
+            {errorMessage && view !== "create" && view !== "edit" ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {errorMessage}
                 </div>
@@ -1068,3 +1097,5 @@ function ServiceInvoicesPage({ token }) {
 }
 
 export default ServiceInvoicesPage;
+
+

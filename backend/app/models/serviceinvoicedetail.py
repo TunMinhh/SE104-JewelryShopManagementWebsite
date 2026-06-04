@@ -11,6 +11,7 @@ class ServiceInvoiceDetail(Base):
     servicetypeid = Column(Integer, ForeignKey("servicetype.servicetypeid"), nullable=False)
 
     defaultprice = Column(Numeric)
+    extraamount = Column(Numeric)
     actualprice = Column(Numeric)
 
     quantity = Column(Numeric)

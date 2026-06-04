@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { displayCode, formatCode } from "../lib/displayCodes";
 import { fetchJson as _fetchJson } from "../lib/fetchJson";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
@@ -76,13 +77,13 @@ function CustomersPage({ token }) {
         }
     };
 
-    const handleDelete = async (customerId) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn xóa khách hàng #${customerId}?`)) return;
+    const handleDelete = async (customer) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn xóa khách hàng ${displayCode(customer, "customercode", "KH", "customerid")}?`)) return;
 
         setLoading(true);
         setErrorMessage("");
         try {
-            await fetchJson(`/customers/${customerId}`, { method: "DELETE" });
+            await fetchJson(`/customers/${customer.customerid}`, { method: "DELETE" });
             await loadCustomers();
         } catch (error) {
             setErrorMessage(error.message || "Không thể xóa khách hàng");
@@ -133,6 +134,7 @@ function CustomersPage({ token }) {
 
         const haystacks = [
             String(customer.customerid || ""),
+            customer.customercode || "",
             customer.customername || "",
             customer.phonenumber || "",
         ];
@@ -165,7 +167,7 @@ function CustomersPage({ token }) {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(event) => setSearchTerm(event.target.value)}
-                                placeholder="Tìm theo ID, tên khách hàng hoặc số điện thoại"
+                                placeholder="Tìm theo mã, tên khách hàng hoặc số điện thoại"
                                 className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
                             />
                         </label>
@@ -180,7 +182,7 @@ function CustomersPage({ token }) {
                             <table className="w-full min-w-[760px]">
                                 <thead className="bg-stone-50 border-b border-stone-200">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">ID</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mã KH</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Tên khách hàng</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Điện thoại</th>
                                         <th className="px-6 py-3 text-right text-xs font-semibold uppercase text-stone-600">Tác vụ</th>
@@ -193,13 +195,13 @@ function CustomersPage({ token }) {
                                         <tr><td colSpan="4" className="px-6 py-5 text-center text-stone-400">Không có khách hàng phù hợp bộ lọc</td></tr>
                                     ) : filteredCustomers.map((customer) => (
                                         <tr key={customer.customerid} className="hover:bg-stone-50">
-                                            <td className="px-6 py-4 text-sm text-stone-800">{customer.customerid}</td>
+                                            <td className="px-6 py-4 text-sm font-semibold text-stone-800">{displayCode(customer, "customercode", "KH", "customerid")}</td>
                                             <td className="px-6 py-4 text-sm text-stone-800">{customer.customername}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{customer.phonenumber || "-"}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex justify-end gap-2">
                                                     <button type="button" onClick={() => openEditView(customer)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50">Sửa</button>
-                                                    <button type="button" onClick={() => handleDelete(customer.customerid)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
+                                                    <button type="button" onClick={() => handleDelete(customer)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -213,7 +215,7 @@ function CustomersPage({ token }) {
                 <div className="space-y-6">
                     <div>
                         <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                        <h3 className="mt-3 text-2xl font-semibold text-stone-800">{editingCustomerId ? `Chỉnh sửa khách hàng #${editingCustomerId}` : "Tạo khách hàng mới"}</h3>
+                        <h3 className="mt-3 text-2xl font-semibold text-stone-800">{editingCustomerId ? `Chỉnh sửa khách hàng ${formatCode("KH", editingCustomerId)}` : "Tạo khách hàng mới"}</h3>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">

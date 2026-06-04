@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, decode_access_token, verify_password
-from app.deps import get_db
+from app.deps import format_code, get_db
 from app.models.employee import Employee
 from app.models.role import Role
 
@@ -21,6 +21,7 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str
     employeeid: int
+    employeecode: str
     employeename: str
     roleid: int
     rolename: str
@@ -53,6 +54,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         access_token=access_token,
         token_type="bearer",
         employeeid=employee.employeeid,
+        employeecode=format_code("NV", employee.employeeid),
         employeename=employee.employeename,
         roleid=employee.roleid,
         rolename=employee.role.rolename if employee.role else "Employee",
@@ -82,6 +84,7 @@ def me(
 
     return {
         "employeeid": employee.employeeid,
+        "employeecode": format_code("NV", employee.employeeid),
         "username": employee.username,
         "employeename": employee.employeename,
         "roleid": employee.roleid,

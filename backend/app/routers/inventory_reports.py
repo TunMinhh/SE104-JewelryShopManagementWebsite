@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.deps import get_db, require_admin
+from app.deps import format_code, get_db, require_admin
 from app.models.employee import Employee
 from app.models.product import Product
 from app.models.purchaseinvoice import PurchaseInvoice
@@ -93,8 +93,9 @@ def get_stock_report(
 
         items.append({
             "productid": product.productid,
+            "productcode": format_code("SP", product.productid),
             "productname": product.productname,
-            "unitofmeasure": product.unitofmeasure,
+            "unitofmeasure": product.category.unitofmeasure if product.category else None,
             "openingquantity": opening_quantity,
             "purchasedquantity": purchased_quantity,
             "soldquantity": sold_quantity,

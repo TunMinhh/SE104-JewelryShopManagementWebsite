@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, get_current_employee
+from app.deps import format_code, get_db, get_current_employee
 from app.models.employee import Employee
 from app.models.productcategory import ProductCategory
 
@@ -15,8 +15,10 @@ def list_product_categories(db: Session = Depends(get_db), current_employee: Emp
     return [
         {
             "categoryid": category.productcategoryid,
+            "categorycode": format_code("DM", category.productcategoryid),
             "categoryname": category.categoryname,
             "profitpercentage": float(category.profitpercentage) if category.profitpercentage is not None else 0,
+            "unitofmeasure": category.unitofmeasure,
         }
         for category in categories
     ]

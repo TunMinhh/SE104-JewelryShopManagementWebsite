@@ -72,6 +72,10 @@ def to_float(value):
     return float(value) if value is not None else 0.0
 
 
+def format_code(prefix: str, value: int | None, width: int = 3):
+    return f"{prefix}{value:0{width}d}" if value is not None else None
+
+
 def log_action(db: Session, employee_id: int, action: str, resource: str, resource_id=None, detail: str | None = None):
     from datetime import datetime, timezone
     from app.models.auditlog import AuditLog

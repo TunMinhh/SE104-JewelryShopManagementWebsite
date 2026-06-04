@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import { displayCode, formatCode } from "../lib/displayCodes";
 import { formatCurrency, formatQuantity, escapeHtml } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
@@ -141,7 +142,7 @@ function SalesInvoicesPage({ token }) {
 <html lang="vi">
 <head>
     <meta charset="UTF-8" />
-    <title>Phiếu bán hàng ${invoice.invoiceid}</title>
+    <title>Phiếu bán hàng ${escapeHtml(displayCode(invoice, "invoicecode", "HD", "invoiceid"))}</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 32px; color: #1c1917; }
         h1 { margin: 0 0 8px; font-size: 28px; }
@@ -155,9 +156,9 @@ function SalesInvoicesPage({ token }) {
 <body>
     <h1>PHIẾU BÁN HÀNG</h1>
     <div class="meta">
-        <div>Mã phiếu: ${escapeHtml(invoice.invoiceid)}</div>
+        <div>Mã phiếu: ${escapeHtml(displayCode(invoice, "invoicecode", "HD", "invoiceid"))}</div>
         <div>Ngày lập: ${escapeHtml(new Date(invoice.invoicedate).toLocaleDateString("vi-VN"))}</div>
-        <div>Khách hàng: ${escapeHtml(invoice.customername || `KH ${invoice.customerid}`)}</div>
+        <div>Khách hàng: ${escapeHtml(invoice.customername || displayCode(invoice, "customercode", "KH", "customerid"))}</div>
     </div>
     <table>
         <thead>
@@ -229,7 +230,7 @@ function SalesInvoicesPage({ token }) {
     };
 
     const handleDelete = async (invoiceId) => {
-        const accepted = window.confirm(`Bạn có chắc chắn muốn xóa phiếu bán #${invoiceId}?`);
+        const accepted = window.confirm(`Bạn có chắc chắn muốn xóa phiếu bán ${formatCode("HD", invoiceId)}?`);
         if (!accepted) return;
 
         setLoading(true);
@@ -258,7 +259,7 @@ function SalesInvoicesPage({ token }) {
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = `phieu-ban-${invoice.invoiceid}.html`;
+            link.download = `phieu-ban-${displayCode(invoice, "invoicecode", "HD", "invoiceid")}.html`;
             document.body.appendChild(link);
             link.click();
             link.remove();
@@ -352,14 +353,25 @@ function SalesInvoicesPage({ token }) {
 
     const getLineTotal = (item) => Number(item.quantity || 0) * Number(item.sellingprice || 0);
 
+    const getAvailableQuantityForSale = (productId) => {
+        const product = getProductById(productId);
+        const currentQuantity = Number(product?.currentquantity || 0);
+        const originalInvoiceQuantity = view === "edit"
+            ? (selectedInvoice?.details || [])
+                .filter((detail) => String(detail.productid) === String(productId))
+                .reduce((sum, detail) => sum + Number(detail.quantity || 0), 0)
+            : 0;
+        return currentQuantity + originalInvoiceQuantity;
+    };
+
     const formTotal = form.items.reduce((sum, item) => sum + getLineTotal(item), 0);
 
     const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
     const filteredInvoices = invoices.filter((invoice) => {
         const matchesSearch = !normalizedSearchTerm || [
             String(invoice.invoiceid || ""),
+            invoice.invoicecode || "",
             invoice.customername || "",
-            invoice.invoicedate || "",
         ].some((value) => value.toLowerCase().includes(normalizedSearchTerm));
 
         const matchesCustomer = customerFilter === "all" || String(invoice.customerid) === customerFilter;
@@ -429,6 +441,19 @@ function SalesInvoicesPage({ token }) {
         if (new Set(productIds).size !== productIds.length) {
             setErrorMessage("Mỗi sản phẩm chỉ được xuất hiện 1 lần trong cùng phiếu");
             return;
+        }
+
+        for (let index = 0; index < form.items.length; index += 1) {
+            const item = form.items[index];
+            const product = getProductById(item.productid);
+            if (!product) continue;
+
+            const availableQuantity = getAvailableQuantityForSale(item.productid);
+            const requestedQuantity = Number(item.quantity || 0);
+            if (requestedQuantity > availableQuantity) {
+                setErrorMessage(`Dòng ${index + 1} - ${displayCode(product, "productcode", "SP", "productid")} ${product.productname}: Không đủ tồn kho. Tồn hiện tại: ${availableQuantity}, số lượng bán: ${requestedQuantity}.`);
+                return;
+            }
         }
 
         setSubmitting(true);
@@ -534,8 +559,8 @@ function SalesInvoicesPage({ token }) {
                             ) : (
                                 filteredInvoices.map((invoice) => (
                                     <tr key={invoice.invoiceid} className="hover:bg-stone-50 align-top">
-                                        <td className="px-6 py-4 text-sm font-semibold text-stone-800">#{invoice.invoiceid}</td>
-                                        <td className="px-6 py-4 text-sm text-stone-600">{invoice.customername || `KH ${invoice.customerid}`}</td>
+                                        <td className="px-6 py-4 text-sm font-semibold text-stone-800">{displayCode(invoice, "invoicecode", "HD", "invoiceid")}</td>
+                                        <td className="px-6 py-4 text-sm text-stone-600">{invoice.customername || displayCode(invoice, "customercode", "KH", "customerid")}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{new Date(invoice.invoicedate).toLocaleDateString("vi-VN")}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{invoice.itemcount}</td>
                                         <td className="px-6 py-4 text-sm text-stone-600">{formatCurrency(invoice.totalamount)}đ</td>
@@ -563,7 +588,7 @@ function SalesInvoicesPage({ token }) {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">{view === "edit" ? `Chỉnh sửa phiếu bán #${editingInvoiceId}` : "Tạo phiếu bán mới"}</h3>
+                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">{view === "edit" ? `Chỉnh sửa phiếu bán ${formatCode("HD", editingInvoiceId)}` : "Tạo phiếu bán mới"}</h3>
                     <p className="mt-1 text-sm text-stone-500">Mẫu tạo phiếu được tách riêng khỏi danh sách theo yêu cầu.</p>
                 </div>
             </div>
@@ -681,7 +706,7 @@ function SalesInvoicesPage({ token }) {
                                                     <option value="">Chọn sản phẩm</option>
                                                     {products.map((productOption) => (
                                                         <option key={productOption.productid} value={productOption.productid}>
-                                                            {productOption.productname}
+                                                            {displayCode(productOption, "productcode", "SP", "productid")} - {productOption.productname}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -735,6 +760,12 @@ function SalesInvoicesPage({ token }) {
                         {submitting ? "Đang lưu..." : view === "edit" ? "Cập nhật phiếu bán" : "Lưu phiếu bán"}
                     </button>
                 </div>
+
+                {errorMessage ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                        {errorMessage}
+                    </div>
+                ) : null}
             </form>
         </div>
     );
@@ -744,7 +775,7 @@ function SalesInvoicesPage({ token }) {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">Chi tiết phiếu bán #{selectedInvoice?.invoiceid}</h3>
+                    <h3 className="mt-3 text-2xl font-semibold text-stone-800">Chi tiết phiếu bán {displayCode(selectedInvoice, "invoicecode", "HD", "invoiceid")}</h3>
                     <p className="mt-1 text-sm text-stone-500">Xem dữ liệu đầy đủ và thao tác in/tải biểu mẫu phiếu bán hàng.</p>
                 </div>
                 {selectedInvoice ? (
@@ -761,7 +792,7 @@ function SalesInvoicesPage({ token }) {
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                             <div className="text-sm text-stone-500">Khách hàng</div>
-                            <div className="mt-2 text-lg font-semibold text-stone-800">{selectedInvoice.customername || `KH ${selectedInvoice.customerid}`}</div>
+                            <div className="mt-2 text-lg font-semibold text-stone-800">{selectedInvoice.customername || displayCode(selectedInvoice, "customercode", "KH", "customerid")}</div>
                         </div>
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                             <div className="text-sm text-stone-500">Ngày lập</div>
@@ -812,7 +843,7 @@ function SalesInvoicesPage({ token }) {
 
     return (
         <div className="space-y-4">
-            {errorMessage ? (
+            {errorMessage && view !== "create" && view !== "edit" ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {errorMessage}
                 </div>
@@ -826,3 +857,5 @@ function SalesInvoicesPage({ token }) {
 }
 
 export default SalesInvoicesPage;
+
+

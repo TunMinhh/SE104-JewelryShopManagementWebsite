@@ -8,5 +8,6 @@ class ProductCategory(Base):
     productcategoryid = Column(Integer, primary_key=True)
     categoryname = Column(String)
     profitpercentage = Column(Numeric)
+    unitofmeasure = Column(String)
 
     products = relationship("Product", back_populates="category")

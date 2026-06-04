@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.deps import get_db, get_current_employee, to_float, log_action
+from app.deps import format_code, get_db, get_current_employee, to_float, log_action
 from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.serviceinvoice import ServiceInvoice
@@ -20,7 +20,8 @@ router = APIRouter()
 class ServiceInvoiceLineItemPayload(BaseModel):
     servicetypeid: int
     quantity: int = Field(gt=0)
-    actualprice: float = Field(gt=0)
+    extraamount: float = Field(default=0, ge=0)
+    actualprice: float | None = Field(default=None, gt=0)
     paidamount: float = Field(ge=0)
     deliverydate: date | None = None
 
@@ -89,7 +90,8 @@ def _replace_service_invoice_details(invoice: ServiceInvoice, payload: ServiceIn
         service_type = service_type_map[item.servicetypeid]
         quantity = Decimal(str(item.quantity))
         default_price = _to_money(service_type.defaultserviceprice or 0)
-        actual_price = _to_money(item.actualprice)
+        extra_amount = _to_money(item.extraamount)
+        actual_price = (default_price + extra_amount).quantize(Decimal("0.01"))
         line_total = (quantity * actual_price).quantize(Decimal("0.01"))
         paid_amount = _to_money(item.paidamount)
         minimum_paid_amount = (line_total * Decimal("0.50")).quantize(Decimal("0.01"))
@@ -97,13 +99,13 @@ def _replace_service_invoice_details(invoice: ServiceInvoice, payload: ServiceIn
         if paid_amount < minimum_paid_amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Paid amount must be at least 50% of total amount for service type {service_type.servicename}",
+                detail=f"Số tiền trả trước phải từ 50% đến 100% giá trị dịch vụ {service_type.servicename}",
             )
 
         if paid_amount > line_total:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Paid amount cannot exceed total amount for service type {service_type.servicename}",
+                detail=f"Số tiền trả trước phải từ 50% đến 100% giá trị dịch vụ {service_type.servicename}",
             )
 
         line_remaining = (line_total - paid_amount).quantize(Decimal("0.01"))
@@ -115,6 +117,7 @@ def _replace_service_invoice_details(invoice: ServiceInvoice, payload: ServiceIn
                 serviceinvoiceid=invoice.serviceinvoiceid,
                 servicetypeid=service_type.servicetypeid,
                 defaultprice=default_price,
+                extraamount=extra_amount,
                 actualprice=actual_price,
                 quantity=quantity,
                 totalamount=line_total,
@@ -131,7 +134,7 @@ def _replace_service_invoice_details(invoice: ServiceInvoice, payload: ServiceIn
     invoice.totalamount = total_amount.quantize(Decimal("0.01"))
     invoice.totalpaid = total_paid.quantize(Decimal("0.01"))
     invoice.remainingamount = remaining_amount.quantize(Decimal("0.01"))
-    invoice.status = "Đã giao" if is_completed else "Chưa giao"
+    invoice.status = "Hoàn thành" if is_completed else "Chưa hoàn thành"
 
 
 def _serialize_service_invoice_detail(detail: ServiceInvoiceDetail):
@@ -140,8 +143,10 @@ def _serialize_service_invoice_detail(detail: ServiceInvoiceDetail):
     return {
         "serviceinvoicedetailid": detail.serviceinvoicedetailid,
         "servicetypeid": detail.servicetypeid,
+        "servicetypecode": format_code("DV", detail.servicetypeid),
         "servicename": service_type.servicename if service_type else None,
         "defaultprice": to_float(detail.defaultprice if detail.defaultprice is not None else (service_type.defaultserviceprice if service_type else 0)),
+        "extraamount": to_float(detail.extraamount),
         "actualprice": to_float(detail.actualprice),
         "quantity": int(detail.quantity) if detail.quantity is not None else 0,
         "totalamount": to_float(detail.totalamount),
@@ -158,14 +163,16 @@ def _serialize_service_invoice(invoice: ServiceInvoice, include_details: bool = 
     service_names = [detail.servicetype.servicename for detail in ordered_details if detail.servicetype and detail.servicetype.servicename]
     payload = {
         "invoiceid": invoice.serviceinvoiceid,
+        "invoicecode": format_code("PDV", invoice.serviceinvoiceid),
         "invoicedate": invoice.createddate.isoformat() if invoice.createddate else None,
         "customerid": invoice.customerid,
+        "customercode": format_code("KH", invoice.customerid),
         "customername": invoice.customer.customername if invoice.customer else None,
         "customerphonenumber": invoice.customer.phonenumber if invoice.customer else None,
         "totalamount": to_float(invoice.totalamount),
         "totalpaid": to_float(invoice.totalpaid),
         "remainingamount": to_float(invoice.remainingamount),
-        "status": invoice.status or ("Đã giao" if is_completed else "Chưa giao"),
+        "status": invoice.status or ("Hoàn thành" if is_completed else "Chưa hoàn thành"),
         "itemcount": len(ordered_details),
         "servicenames": service_names,
         "servicenamesummary": ", ".join(service_names),
@@ -236,7 +243,7 @@ def create_service_invoice(
 
     db.commit()
     created_invoice = _get_service_invoice_or_404(invoice.serviceinvoiceid, db)
-    log_action(db, current_employee.employeeid, "CREATE", "ServiceInvoice", invoice.serviceinvoiceid, f"Tạo phiếu dịch vụ #{invoice.serviceinvoiceid}")
+    log_action(db, current_employee.employeeid, "CREATE", "ServiceInvoice", invoice.serviceinvoiceid, f"Tạo phiếu dịch vụ {format_code('PDV', invoice.serviceinvoiceid)}")
     return _serialize_service_invoice(created_invoice, include_details=True)
 
 
@@ -251,7 +258,7 @@ def update_service_invoice(
     _replace_service_invoice_details(invoice, payload, db)
     db.commit()
     updated_invoice = _get_service_invoice_or_404(invoice_id, db)
-    log_action(db, current_employee.employeeid, "UPDATE", "ServiceInvoice", invoice_id, f"Cập nhật phiếu dịch vụ #{invoice_id}")
+    log_action(db, current_employee.employeeid, "UPDATE", "ServiceInvoice", invoice_id, f"Cập nhật phiếu dịch vụ {format_code('PDV', invoice_id)}")
     return _serialize_service_invoice(updated_invoice, include_details=True)
 
 
@@ -273,4 +280,4 @@ def delete_service_invoice(
 
     db.delete(invoice)
     db.commit()
-    log_action(db, current_employee.employeeid, "DELETE", "ServiceInvoice", invoice_id, f"Xóa phiếu dịch vụ #{invoice_id}")
+    log_action(db, current_employee.employeeid, "DELETE", "ServiceInvoice", invoice_id, f"Xóa phiếu dịch vụ {format_code('PDV', invoice_id)}")

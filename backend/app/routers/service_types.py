@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, get_current_employee, to_float
+from app.deps import format_code, get_db, get_current_employee, to_float
 from app.models.employee import Employee
 from app.models.servicetype import ServiceType
 
@@ -11,6 +11,7 @@ router = APIRouter()
 def _serialize_service_type(service_type: ServiceType):
     return {
         "servicetypeid": service_type.servicetypeid,
+        "servicetypecode": format_code("DV", service_type.servicetypeid),
         "servicename": service_type.servicename,
         "defaultserviceprice": to_float(service_type.defaultserviceprice),
     }

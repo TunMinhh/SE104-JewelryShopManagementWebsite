@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { buildApiUrl } from "../lib/api";
+import { displayCode } from "../lib/displayCodes";
 import EmployeesPage from "./EmployeesPage";
 import CustomersPage from "./CustomersPage";
 import InventoryPage from "./InventoryPage";
@@ -328,8 +329,8 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                                             <tbody className="divide-y divide-stone-200">
                                                 {recentOrders.map((order) => (
                                                     <tr key={order.invoiceid} className="hover:bg-stone-50">
-                                                        <td className="px-4 py-4 text-sm font-semibold text-stone-800">#{order.invoiceid}</td>
-                                                        <td className="px-4 py-4 text-sm text-stone-700">{order.customername || `KH ${order.customerid}`}</td>
+                                                        <td className="px-4 py-4 text-sm font-semibold text-stone-800">{displayCode(order, "invoicecode", "HD", "invoiceid")}</td>
+                                                        <td className="px-4 py-4 text-sm text-stone-700">{order.customername || displayCode(order, "customercode", "KH", "customerid")}</td>
                                                         <td className="px-4 py-4 text-sm text-stone-600">{new Date(order.invoicedate).toLocaleDateString("vi-VN")}</td>
                                                         <td className="px-4 py-4 text-sm text-stone-600">{order.itemcount}</td>
                                                         <td className="px-4 py-4 text-right text-sm font-medium text-stone-800">{Number(order.totalamount || 0).toLocaleString("vi-VN")}đ</td>

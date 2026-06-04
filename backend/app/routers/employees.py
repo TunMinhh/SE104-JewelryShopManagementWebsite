@@ -4,7 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password
-from app.deps import get_db, require_admin, log_action
+from app.deps import format_code, get_db, require_admin, log_action
 from app.models.employee import Employee
 from app.models.role import Role
 
@@ -21,6 +21,7 @@ class EmployeePayload(BaseModel):
 def _serialize_employee(employee: Employee):
     return {
         "employeeid": employee.employeeid,
+        "employeecode": format_code("NV", employee.employeeid),
         "employeename": employee.employeename,
         "username": employee.username,
         "roleid": employee.roleid,

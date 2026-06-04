@@ -7,10 +7,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.deps import get_db, get_current_employee, to_float, log_action
+from app.deps import format_code, get_db, get_current_employee, to_float, log_action
 from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.product import Product
+from app.models.purchaseinvoicedetail import PurchaseInvoiceDetail
 from app.models.salesinvoice import SalesInvoice
 from app.models.salesinvoicedetail import SalesInvoiceDetail
 
@@ -51,9 +52,10 @@ def _serialize_sales_invoice_detail(detail: SalesInvoiceDetail):
     return {
         "salesinvoicedetailid": detail.salesinvoicedetailid,
         "productid": detail.productid,
+        "productcode": format_code("SP", detail.productid),
         "productname": product.productname if product else None,
         "categoryname": category.categoryname if category else None,
-        "unitofmeasure": product.unitofmeasure if product else None,
+        "unitofmeasure": category.unitofmeasure if category else None,
         "quantity": int(detail.quantity) if detail.quantity is not None else 0,
         "sellingprice": to_float(detail.sellingprice),
         "totalamount": to_float(detail.totalamount),
@@ -64,8 +66,10 @@ def _serialize_sales_invoice(invoice: SalesInvoice, include_details: bool = Fals
     ordered_details = sorted(invoice.details, key=lambda detail: detail.salesinvoicedetailid or 0)
     payload = {
         "invoiceid": invoice.salesinvoiceid,
+        "invoicecode": format_code("HD", invoice.salesinvoiceid),
         "invoicedate": invoice.createddate.isoformat() if invoice.createddate else None,
         "customerid": invoice.customerid,
+        "customercode": format_code("KH", invoice.customerid),
         "customername": invoice.customer.customername if invoice.customer else None,
         "totalamount": round(sum(to_float(detail.totalamount) for detail in ordered_details), 2),
         "itemcount": len(ordered_details),
@@ -75,7 +79,25 @@ def _serialize_sales_invoice(invoice: SalesInvoice, include_details: bool = Fals
     return payload
 
 
-def _validate_sales_invoice_payload(payload: SalesInvoicePayload, db: Session):
+def _get_available_quantity(db: Session, product_id: int, invoice_id: int | None = None):
+    purchased_quantity = (
+        db.query(func.coalesce(func.sum(PurchaseInvoiceDetail.quantity), 0))
+        .filter(PurchaseInvoiceDetail.productid == product_id)
+        .scalar()
+        or 0
+    )
+
+    sold_query = db.query(func.coalesce(func.sum(SalesInvoiceDetail.quantity), 0)).filter(
+        SalesInvoiceDetail.productid == product_id
+    )
+    if invoice_id is not None:
+        sold_query = sold_query.filter(SalesInvoiceDetail.salesinvoiceid != invoice_id)
+
+    sold_quantity = sold_query.scalar() or 0
+    return Decimal(str(purchased_quantity)) - Decimal(str(sold_quantity))
+
+
+def _validate_sales_invoice_payload(payload: SalesInvoicePayload, db: Session, invoice_id: int | None = None):
     customer = db.query(Customer).filter(Customer.customerid == payload.customerid).first()
     if not customer:
         raise HTTPException(
@@ -107,11 +129,24 @@ def _validate_sales_invoice_payload(payload: SalesInvoicePayload, db: Session):
             detail=f"Products do not have a valid fixed selling price: {', '.join(products_without_price)}",
         )
 
+    for item in payload.items:
+        available_quantity = _get_available_quantity(db, item.productid, invoice_id=invoice_id)
+        requested_quantity = Decimal(str(item.quantity))
+        if requested_quantity > available_quantity:
+            product = product_map[item.productid]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Sản phẩm {format_code('SP', product.productid)} - {product.productname} "
+                    f"không đủ tồn kho. Tồn hiện tại: {available_quantity:g}, số lượng bán: {requested_quantity:g}."
+                ),
+            )
+
     return customer, product_map
 
 
 def _replace_sales_invoice_details(invoice: SalesInvoice, payload: SalesInvoicePayload, db: Session):
-    _, product_map = _validate_sales_invoice_payload(payload, db)
+    _, product_map = _validate_sales_invoice_payload(payload, db, invoice_id=invoice.salesinvoiceid)
 
     invoice.createddate = payload.createddate
     invoice.customerid = payload.customerid
@@ -192,7 +227,7 @@ def create_sales_invoice(
 
     db.commit()
     created_invoice = _get_sales_invoice_or_404(invoice.salesinvoiceid, db)
-    log_action(db, current_employee.employeeid, "CREATE", "SalesInvoice", invoice.salesinvoiceid, f"Tạo phiếu bán #{invoice.salesinvoiceid}")
+    log_action(db, current_employee.employeeid, "CREATE", "SalesInvoice", invoice.salesinvoiceid, f"Tạo phiếu bán {format_code('HD', invoice.salesinvoiceid)}")
     return _serialize_sales_invoice(created_invoice, include_details=True)
 
 
@@ -207,7 +242,7 @@ def update_sales_invoice(
     _replace_sales_invoice_details(invoice, payload, db)
     db.commit()
     updated_invoice = _get_sales_invoice_or_404(invoice_id, db)
-    log_action(db, current_employee.employeeid, "UPDATE", "SalesInvoice", invoice_id, f"Cập nhật phiếu bán #{invoice_id}")
+    log_action(db, current_employee.employeeid, "UPDATE", "SalesInvoice", invoice_id, f"Cập nhật phiếu bán {format_code('HD', invoice_id)}")
     return _serialize_sales_invoice(updated_invoice, include_details=True)
 
 
@@ -226,4 +261,4 @@ def delete_sales_invoice(
 
     db.delete(invoice)
     db.commit()
-    log_action(db, current_employee.employeeid, "DELETE", "SalesInvoice", invoice_id, f"Xóa phiếu bán #{invoice_id}")
+    log_action(db, current_employee.employeeid, "DELETE", "SalesInvoice", invoice_id, f"Xóa phiếu bán {format_code('HD', invoice_id)}")

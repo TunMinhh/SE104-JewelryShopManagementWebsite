@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import { displayCode } from "../lib/displayCodes";
 import { formatQuantity, escapeHtml } from "../lib/formatters";
 
 function getCurrentMonthValue() {
@@ -17,6 +18,7 @@ function buildStockReportHtml(reportMonth, reportItems) {
     const rowsHtml = rows.map((item, index) => `
         <tr>
             <td>${index + 1}</td>
+            <td>${item ? escapeHtml(displayCode(item, "productcode", "SP", "productid")) : ""}</td>
             <td>${item ? escapeHtml(item.productname) : ""}</td>
             <td>${item ? escapeHtml(formatQuantity(item.openingquantity)) : ""}</td>
             <td>${item ? escapeHtml(formatQuantity(item.purchasedquantity)) : ""}</td>
@@ -48,13 +50,14 @@ function buildStockReportHtml(reportMonth, reportItems) {
 <body>
     <table>
         <tr>
-            <td colspan="7" class="title">BÁO CÁO TỒN KHO</td>
+            <td colspan="8" class="title">BÁO CÁO TỒN KHO</td>
         </tr>
         <tr>
-            <td colspan="7" class="month-row"><strong>Tháng:</strong> ${escapeHtml(`${month}/${year}`)}</td>
+            <td colspan="8" class="month-row"><strong>Tháng:</strong> ${escapeHtml(`${month}/${year}`)}</td>
         </tr>
         <tr>
             <th class="center">Stt</th>
+            <th class="center">Mã SP</th>
             <th class="center product-col">Sản phẩm</th>
             <th class="center qty-col">Tồn đầu</th>
             <th class="center qty-col">Số lượng mua vào</th>
@@ -200,13 +203,14 @@ function InventoryReportPage({ token }) {
                     <table className="w-full min-w-[960px] border-collapse border border-stone-900 text-sm">
                         <thead>
                             <tr>
-                                <th colSpan="7" className="border border-stone-900 px-4 py-4 text-center text-2xl font-bold text-stone-900">BÁO CÁO TỒN KHO</th>
+                                <th colSpan="8" className="border border-stone-900 px-4 py-4 text-center text-2xl font-bold text-stone-900">BÁO CÁO TỒN KHO</th>
                             </tr>
                             <tr>
-                                <th colSpan="7" className="border border-stone-900 px-4 py-4 text-center text-lg font-semibold text-stone-900">Tháng: {reportMonth ? `${reportMonth.slice(5, 7)}/${reportMonth.slice(0, 4)}` : "-"}</th>
+                                <th colSpan="8" className="border border-stone-900 px-4 py-4 text-center text-lg font-semibold text-stone-900">Tháng: {reportMonth ? `${reportMonth.slice(5, 7)}/${reportMonth.slice(0, 4)}` : "-"}</th>
                             </tr>
                             <tr>
                                 <th className="border border-stone-900 px-4 py-3 text-center font-semibold text-stone-900">Stt</th>
+                                <th className="border border-stone-900 px-4 py-3 text-center font-semibold text-stone-900">Mã SP</th>
                                 <th className="border border-stone-900 px-4 py-3 text-center font-semibold text-stone-900">Sản phẩm</th>
                                 <th className="border border-stone-900 px-4 py-3 text-center font-semibold text-stone-900">Tồn đầu</th>
                                 <th className="border border-stone-900 px-4 py-3 text-center font-semibold text-stone-900">Số lượng mua vào</th>
@@ -218,15 +222,16 @@ function InventoryReportPage({ token }) {
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan="7" className="border border-stone-900 px-4 py-5 text-center text-stone-400">Đang tải báo cáo tồn kho...</td>
+                                    <td colSpan="8" className="border border-stone-900 px-4 py-5 text-center text-stone-400">Đang tải báo cáo tồn kho...</td>
                                 </tr>
                             ) : reportItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="border border-stone-900 px-4 py-5 text-center text-stone-400">Không có dữ liệu tồn kho trong kỳ đã chọn</td>
+                                    <td colSpan="8" className="border border-stone-900 px-4 py-5 text-center text-stone-400">Không có dữ liệu tồn kho trong kỳ đã chọn</td>
                                 </tr>
                             ) : reportItems.map((item, index) => (
                                 <tr key={item.productid}>
                                     <td className="border border-stone-900 px-4 py-4 text-right text-stone-800">{index + 1}</td>
+                                    <td className="border border-stone-900 px-4 py-4 font-semibold text-stone-800">{displayCode(item, "productcode", "SP", "productid")}</td>
                                     <td className="border border-stone-900 px-4 py-4 text-stone-800">{item.productname}</td>
                                     <td className="border border-stone-900 px-4 py-4 text-right text-stone-700">{formatQuantity(item.openingquantity)}</td>
                                     <td className="border border-stone-900 px-4 py-4 text-right text-stone-700">{formatQuantity(item.purchasedquantity)}</td>
@@ -244,3 +249,4 @@ function InventoryReportPage({ token }) {
 }
 
 export default InventoryReportPage;
+

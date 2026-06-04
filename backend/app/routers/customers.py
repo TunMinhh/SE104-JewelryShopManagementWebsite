@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, get_current_employee, log_action
+from app.deps import format_code, get_db, get_current_employee, log_action
 from app.models.customer import Customer
 from app.models.employee import Employee
 
@@ -18,6 +18,7 @@ class CustomerPayload(BaseModel):
 def _serialize_customer(customer: Customer):
     return {
         "customerid": customer.customerid,
+        "customercode": format_code("KH", customer.customerid),
         "customername": customer.customername,
         "phonenumber": customer.phonenumber,
     }

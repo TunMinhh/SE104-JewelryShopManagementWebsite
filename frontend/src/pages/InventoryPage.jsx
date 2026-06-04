@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { displayCode, formatCode } from "../lib/displayCodes";
 import { fetchJson as _fetchJson } from "../lib/fetchJson";
 import { formatCurrency, formatQuantity } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
@@ -7,7 +8,6 @@ const emptyForm = () => ({
     productname: "",
     categoryid: "",
     purchaseprice: "",
-    unitofmeasure: "",
     description: "",
 });
 
@@ -26,6 +26,7 @@ function InventoryPage({ token, readOnly = false }) {
     const [errorMessage, setErrorMessage] = useState("");
 
     const fetchJson = (path, options) => _fetchJson(authToken, path, options);
+    const getCategoryById = (categoryId) => categories.find((category) => String(category.categoryid) === String(categoryId));
 
     const loadBaseData = async () => {
         const [productData, categoryData] = await Promise.all([
@@ -65,7 +66,6 @@ function InventoryPage({ token, readOnly = false }) {
             productname: product.productname || "",
             categoryid: String(product.categoryid || ""),
             purchaseprice: String(product.purchaseprice || ""),
-            unitofmeasure: product.unitofmeasure || "",
             description: product.description || "",
         });
         setErrorMessage("");
@@ -88,12 +88,12 @@ function InventoryPage({ token, readOnly = false }) {
     };
 
 
-    const handleDelete = async (productId) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm #${productId}?`)) return;
+    const handleDelete = async (product) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm ${displayCode(product, "productcode", "SP", "productid")}?`)) return;
         setLoading(true);
         setErrorMessage("");
         try {
-            await fetchJson(`/products/${productId}`, { method: "DELETE" });
+            await fetchJson(`/products/${product.productid}`, { method: "DELETE" });
             await loadBaseData();
         } catch (error) {
             setErrorMessage(error.message || "Không thể xóa sản phẩm");
@@ -106,8 +106,8 @@ function InventoryPage({ token, readOnly = false }) {
         event.preventDefault();
         setErrorMessage("");
 
-        if (!form.productname.trim() || !form.categoryid || !form.unitofmeasure.trim()) {
-            setErrorMessage("Vui lòng nhập tên sản phẩm, danh mục và đơn vị tính");
+        if (!form.productname.trim() || !form.categoryid) {
+            setErrorMessage("Vui lòng nhập tên sản phẩm và danh mục");
             return;
         }
 
@@ -122,7 +122,6 @@ function InventoryPage({ token, readOnly = false }) {
                 productname: form.productname.trim(),
                 categoryid: Number(form.categoryid),
                 purchaseprice: Number(form.purchaseprice || 0),
-                unitofmeasure: form.unitofmeasure.trim(),
                 description: form.description.trim(),
             };
 
@@ -150,6 +149,7 @@ function InventoryPage({ token, readOnly = false }) {
     const filteredProducts = products.filter((product) => {
         const matchesSearch = !normalizedSearchTerm || [
             String(product.productid || ""),
+            product.productcode || "",
             product.productname || "",
             product.categoryname || "",
             String(product.currentquantity || ""),
@@ -187,7 +187,7 @@ function InventoryPage({ token, readOnly = false }) {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(event) => setSearchTerm(event.target.value)}
-                                placeholder="Tìm theo ID, tên sản phẩm, danh mục, ĐVT hoặc mô tả"
+                                placeholder="Tìm theo mã, tên sản phẩm, danh mục, ĐVT hoặc mô tả"
                                 className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
                             />
                         </label>
@@ -213,7 +213,7 @@ function InventoryPage({ token, readOnly = false }) {
                             <table className="w-full min-w-[1180px]">
                                 <thead className="bg-stone-50 border-b border-stone-200">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">ID</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mã SP</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Tên sản phẩm</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Danh mục</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Số lượng</th>
@@ -230,7 +230,7 @@ function InventoryPage({ token, readOnly = false }) {
                                         <tr><td colSpan={readOnly ? "7" : "8"} className="px-6 py-5 text-center text-stone-400">Không có sản phẩm phù hợp bộ lọc</td></tr>
                                     ) : filteredProducts.map((product) => (
                                         <tr key={product.productid} className="hover:bg-stone-50">
-                                            <td className="px-6 py-4 text-sm text-stone-800">{product.productid}</td>
+                                            <td className="px-6 py-4 text-sm font-semibold text-stone-800">{displayCode(product, "productcode", "SP", "productid")}</td>
                                             <td className="px-6 py-4 text-sm text-stone-800">{product.productname}</td>
                                             <td className="px-6 py-4 text-sm text-stone-600">{product.categoryname || "-"}</td>
                                             <td className={`px-6 py-4 text-sm font-medium ${Number(product.currentquantity || 0) < 0 ? "text-red-600" : "text-stone-800"}`}>{formatQuantity(product.currentquantity)}</td>
@@ -240,7 +240,7 @@ function InventoryPage({ token, readOnly = false }) {
                                             {!readOnly && <td className="px-6 py-4">
                                                 <div className="flex justify-end gap-2">
                                                     <button type="button" onClick={() => openEditView(product)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50">Sửa</button>
-                                                    <button type="button" onClick={() => handleDelete(product.productid)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
+                                                    <button type="button" onClick={() => handleDelete(product)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
                                                 </div>
                                             </td>}
                                         </tr>
@@ -254,7 +254,7 @@ function InventoryPage({ token, readOnly = false }) {
                 <div className="space-y-6">
                     <div>
                         <button type="button" onClick={resetToList} className="text-sm font-medium text-amber-700 hover:text-amber-600">← Quay lại danh sách</button>
-                        <h3 className="mt-3 text-2xl font-semibold text-stone-800">{editingProductId ? `Chỉnh sửa sản phẩm #${editingProductId}` : "Tạo sản phẩm mới"}</h3>
+                        <h3 className="mt-3 text-2xl font-semibold text-stone-800">{editingProductId ? `Chỉnh sửa sản phẩm ${formatCode("SP", editingProductId)}` : "Tạo sản phẩm mới"}</h3>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -269,14 +269,11 @@ function InventoryPage({ token, readOnly = false }) {
                                     <option value="">Chọn danh mục</option>
                                     {categories.map((category) => <option key={category.categoryid} value={category.categoryid}>{category.categoryname}</option>)}
                                 </select>
+                                <div className="mt-2 text-xs text-stone-500">ĐVT: {getCategoryById(form.categoryid)?.unitofmeasure || "-"}</div>
                             </label>
                             <label className="block">
                                 <span className="text-sm font-medium text-stone-700">Giá mua</span>
                                 <input type="number" min="0" step="0.01" value={form.purchaseprice} onChange={(event) => setForm((current) => ({ ...current, purchaseprice: event.target.value }))} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400" />
-                            </label>
-                            <label className="block">
-                                <span className="text-sm font-medium text-stone-700">Đơn vị tính</span>
-                                <input type="text" value={form.unitofmeasure} onChange={(event) => setForm((current) => ({ ...current, unitofmeasure: event.target.value }))} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400" />
                             </label>
                         </div>
 

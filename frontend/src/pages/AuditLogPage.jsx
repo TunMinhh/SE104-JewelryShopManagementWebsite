@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatCode } from "../lib/displayCodes";
 import { fetchJson as _fetchJson } from "../lib/fetchJson";
 
 function AuditLogPage({ token }) {
@@ -32,6 +33,20 @@ function AuditLogPage({ token }) {
         return d.toLocaleString("vi-VN");
     };
 
+    const formatResourceCode = (log) => {
+        if (!log.resourceid) return "-";
+        const prefixes = {
+            Customer: "KH",
+            Employee: "NV",
+            Product: "SP",
+            Supplier: "NCC",
+            SalesInvoice: "HD",
+            PurchaseInvoice: "PM",
+            ServiceInvoice: "PDV",
+        };
+        return formatCode(prefixes[log.resource], log.resourceid);
+    };
+
     return (
         <div className="space-y-6">
             <div>
@@ -48,7 +63,7 @@ function AuditLogPage({ token }) {
                     <table className="w-full min-w-[900px]">
                         <thead className="bg-stone-50 border-b border-stone-200">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">ID</th>
+                                <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mã log</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Nhân viên</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Hành động</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-stone-600">Tài nguyên</th>
@@ -64,8 +79,8 @@ function AuditLogPage({ token }) {
                                 <tr><td colSpan="7" className="px-6 py-5 text-center text-stone-400">Chưa có nhật ký hoạt động nào</td></tr>
                             ) : logs.map((log) => (
                                 <tr key={log.logid} className="hover:bg-stone-50">
-                                    <td className="px-6 py-4 text-sm text-stone-800">{log.logid}</td>
-                                    <td className="px-6 py-4 text-sm text-stone-700">{log.employeename || `NV ${log.employeeid}`}</td>
+                                    <td className="px-6 py-4 text-sm text-stone-800">{log.logcode || formatCode("LOG", log.logid)}</td>
+                                    <td className="px-6 py-4 text-sm text-stone-700">{log.employeename || log.employeecode || formatCode("NV", log.employeeid)}</td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-block rounded-lg px-2.5 py-1 text-xs font-semibold ${
                                             log.action === "CREATE" ? "bg-emerald-50 text-emerald-700" :
@@ -75,7 +90,7 @@ function AuditLogPage({ token }) {
                                         }`}>{log.action}</span>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-stone-600">{log.resource}</td>
-                                    <td className="px-6 py-4 text-sm text-stone-600">{log.resourceid || "-"}</td>
+                                    <td className="px-6 py-4 text-sm text-stone-600">{formatResourceCode(log)}</td>
                                     <td className="px-6 py-4 text-sm text-stone-600 max-w-xs truncate">{log.detail || "-"}</td>
                                     <td className="px-6 py-4 text-sm text-stone-500">{formatTimestamp(log.timestamp)}</td>
                                 </tr>

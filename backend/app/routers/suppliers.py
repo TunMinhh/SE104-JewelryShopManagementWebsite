@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, get_current_employee
+from app.deps import format_code, get_db, get_current_employee
 from app.models.employee import Employee
 from app.models.supplier import Supplier
 
@@ -18,6 +18,7 @@ class SupplierPayload(BaseModel):
 def _serialize_supplier(supplier: Supplier):
     return {
         "supplierid": supplier.supplierid,
+        "suppliercode": format_code("NCC", supplier.supplierid),
         "suppliername": supplier.suppliername,
         "address": supplier.address,
         "phonenumber": supplier.phonenumber,
