@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
 import { displayCode, formatCode } from "../lib/displayCodes";
-import { formatCurrency, formatQuantity, escapeHtml } from "../lib/formatters";
+import { formatCurrency, formatQuantity, escapeHtml, formatDateInput, parseDateInput, toIsoDate } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
@@ -403,7 +403,8 @@ function PurchaseInvoicesPage({ token }) {
             return;
         }
 
-        if (!form.createddate) {
+        const createdDate = toIsoDate(form.createddate);
+        if (!createdDate) {
             setErrorMessage("Vui lòng chọn ngày lập phiếu");
             return;
         }
@@ -454,7 +455,7 @@ function PurchaseInvoicesPage({ token }) {
 
             const payload = {
                 supplierid: supplierId,
-                createddate: form.createddate,
+                createddate: createdDate,
                 items: form.items.map((item) => ({
                     productid: Number(item.productid),
                     quantity: Number.parseInt(item.quantity, 10),
@@ -643,9 +644,11 @@ function PurchaseInvoicesPage({ token }) {
                     <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                         <span className="text-sm font-medium text-stone-700">Ngày lập</span>
                         <input
-                            type="date"
-                            value={form.createddate}
-                            onChange={(event) => updateFormField("createddate", event.target.value)}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="dd/mm/yyyy"
+                            value={formatDateInput(form.createddate)}
+                            onChange={(event) => updateFormField("createddate", parseDateInput(event.target.value))}
                             className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
                         />
                     </label>

@@ -153,7 +153,7 @@ def _serialize_service_invoice_detail(detail: ServiceInvoiceDetail):
         "paidamount": to_float(detail.paidamount),
         "remainingamount": to_float(detail.remainingamount),
         "deliverydate": detail.deliverydate.isoformat() if detail.deliverydate else None,
-        "status": "Đã giao" if is_delivered else "Chưa giao",
+        "status": "Hoàn thành" if is_delivered else "Chưa hoàn thành",
     }
 
 

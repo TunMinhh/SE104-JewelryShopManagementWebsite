@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
 import { displayCode, formatCode } from "../lib/displayCodes";
-import { formatCurrency, formatDate, escapeHtml } from "../lib/formatters";
+import { formatCurrency, formatDate, escapeHtml, formatDateInput, parseDateInput, toIsoDate } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
@@ -10,8 +10,11 @@ const emptyLineItem = () => ({
     quantity: "1",
     paidamount: "",
     deliverydate: "",
-    status: "Chưa giao",
+    status: "Chưa hoàn thành",
 });
+
+const COMPLETED_STATUS = "Hoàn thành";
+const INCOMPLETE_STATUS = "Chưa hoàn thành";
 
 const emptyForm = () => ({
     customerid: "",
@@ -149,12 +152,16 @@ function ServiceInvoicesPage({ token }) {
 
     const getLineRemaining = (item) => Math.max(getLineTotal(item) - Number(item.paidamount || 0), 0);
 
-    const getLineStatus = (item) => item.status || (item.deliverydate ? "Đã giao" : "Chưa giao");
+    const getLineStatus = (item) => {
+        if (item.status === "Đã giao") return COMPLETED_STATUS;
+        if (item.status === "Chưa giao") return INCOMPLETE_STATUS;
+        return item.status || (item.deliverydate ? COMPLETED_STATUS : INCOMPLETE_STATUS);
+    };
 
     const formTotal = form.items.reduce((sum, item) => sum + getLineTotal(item), 0);
     const formPaidTotal = form.items.reduce((sum, item) => sum + Number(item.paidamount || 0), 0);
     const formRemainingTotal = Math.max(formTotal - formPaidTotal, 0);
-    const formStatus = form.items.length > 0 && form.items.every((item) => getLineStatus(item) === "Đã giao") ? "Hoàn thành" : "Chưa hoàn thành";
+    const formStatus = form.items.length > 0 && form.items.every((item) => getLineStatus(item) === COMPLETED_STATUS) ? COMPLETED_STATUS : INCOMPLETE_STATUS;
 
     const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
     const filteredServiceInvoices = serviceInvoices.filter((invoice) => {
@@ -361,6 +368,8 @@ function ServiceInvoicesPage({ token }) {
     };
 
     const updateLineItem = (index, field, value) => {
+        const normalizedValue = ["extraamount", "paidamount"].includes(field) ? value.replace(/[^\d]/g, "") : value;
+
         setForm((current) => ({
             ...current,
             items: current.items.map((item, itemIndex) => {
@@ -377,22 +386,22 @@ function ServiceInvoicesPage({ token }) {
                 if (field === "status") {
                     return {
                         ...item,
-                        status: value,
-                        deliverydate: value === "Đã giao" ? item.deliverydate || getTodayDateString() : "",
+                        status: normalizedValue,
+                        deliverydate: normalizedValue === COMPLETED_STATUS ? item.deliverydate || getTodayDateString() : "",
                     };
                 }
 
                 if (field === "deliverydate") {
                     return {
                         ...item,
-                        deliverydate: value,
-                        status: value ? "Đã giao" : "Chưa giao",
+                        deliverydate: normalizedValue,
+                        status: normalizedValue ? COMPLETED_STATUS : INCOMPLETE_STATUS,
                     };
                 }
 
                 return {
                     ...item,
-                    [field]: value,
+                    [field]: normalizedValue,
                 };
             }),
         }));
@@ -452,7 +461,7 @@ function ServiceInvoicesPage({ token }) {
                     quantity: String(detail.quantity),
                     paidamount: String(detail.paidamount),
                     deliverydate: detail.deliverydate || "",
-                    status: detail.status || (detail.deliverydate ? "Đã giao" : "Chưa giao"),
+                    status: getLineStatus(detail),
                 })),
             });
             setCustomerMode("existing");
@@ -517,7 +526,8 @@ function ServiceInvoicesPage({ token }) {
             return;
         }
 
-        if (!form.createddate) {
+        const createdDate = toIsoDate(form.createddate);
+        if (!createdDate) {
             setErrorMessage("Vui lòng chọn ngày lập phiếu");
             return;
         }
@@ -525,6 +535,14 @@ function ServiceInvoicesPage({ token }) {
         if (form.items.length === 0) {
             setErrorMessage("Phiếu dịch vụ phải có ít nhất 1 dòng chi tiết");
             return;
+        }
+
+        for (let index = 0; index < form.items.length; index += 1) {
+            const item = form.items[index];
+            if (getLineStatus(item) === COMPLETED_STATUS && !toIsoDate(item.deliverydate)) {
+                setErrorMessage(`Dòng ${index + 1}: Vui lòng nhập ngày giao theo định dạng dd/mm/yyyy.`);
+                return;
+            }
         }
 
         for (let index = 0; index < form.items.length; index += 1) {
@@ -587,14 +605,14 @@ function ServiceInvoicesPage({ token }) {
 
             const payload = {
                 customerid: customerId,
-                createddate: form.createddate,
+                createddate: createdDate,
                 items: form.items.map((item) => ({
                     servicetypeid: Number(item.servicetypeid),
                     quantity: Number.parseInt(item.quantity, 10),
                     extraamount: Number(item.extraamount || 0),
                     actualprice: getLineActualPrice(item),
                     paidamount: Number(item.paidamount || 0),
-                    deliverydate: getLineStatus(item) === "Đã giao" ? (item.deliverydate || getTodayDateString()) : null,
+                    deliverydate: getLineStatus(item) === COMPLETED_STATUS ? (toIsoDate(item.deliverydate) || getTodayDateString()) : null,
                 })),
             };
 
@@ -758,6 +776,12 @@ function ServiceInvoicesPage({ token }) {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+                {errorMessage ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                        {errorMessage}
+                    </div>
+                ) : null}
+
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between gap-3">
@@ -824,9 +848,11 @@ function ServiceInvoicesPage({ token }) {
                     <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                         <span className="text-sm font-medium text-stone-700">Ngày lập</span>
                         <input
-                            type="date"
-                            value={form.createddate}
-                            onChange={(event) => updateFormField("createddate", event.target.value)}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="dd/mm/yyyy"
+                            value={formatDateInput(form.createddate)}
+                            onChange={(event) => updateFormField("createddate", parseDateInput(event.target.value))}
                             className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
                         />
                     </label>
@@ -899,9 +925,10 @@ function ServiceInvoicesPage({ token }) {
                                         <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(getLineDefaultPrice(item))}đ</td>
                                         <td className="px-4 py-4">
                                             <input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
+                                                type="text"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                placeholder="0"
                                                 value={item.extraamount}
                                                 onChange={(event) => updateLineItem(index, "extraamount", event.target.value)}
                                                 className="w-36 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
@@ -921,9 +948,10 @@ function ServiceInvoicesPage({ token }) {
                                         <td className="px-4 py-4 text-sm font-medium text-stone-800">{formatCurrency(getLineTotal(item))}đ</td>
                                         <td className="px-4 py-4">
                                             <input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
+                                                type="text"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                placeholder="0"
                                                 value={item.paidamount}
                                                 onChange={(event) => updateLineItem(index, "paidamount", event.target.value)}
                                                 className="w-36 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
@@ -932,10 +960,12 @@ function ServiceInvoicesPage({ token }) {
                                         <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(getLineRemaining(item))}đ</td>
                                         <td className="px-4 py-4">
                                             <input
-                                                type="date"
-                                                value={item.deliverydate}
-                                                onChange={(event) => updateLineItem(index, "deliverydate", event.target.value)}
-                                                disabled={getLineStatus(item) !== "Đã giao"}
+                                                type="text"
+                                                inputMode="numeric"
+                                                placeholder="dd/mm/yyyy"
+                                                value={formatDateInput(item.deliverydate)}
+                                                onChange={(event) => updateLineItem(index, "deliverydate", parseDateInput(event.target.value))}
+                                                disabled={getLineStatus(item) !== COMPLETED_STATUS}
                                                 className="w-40 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
                                             />
                                         </td>
@@ -943,10 +973,10 @@ function ServiceInvoicesPage({ token }) {
                                             <select
                                                 value={getLineStatus(item)}
                                                 onChange={(event) => updateLineItem(index, "status", event.target.value)}
-                                                className="w-32 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
+                                                className="w-44 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
                                             >
-                                                <option value="Chưa giao">Chưa giao</option>
-                                                <option value="Đã giao">Đã giao</option>
+                                                <option value={INCOMPLETE_STATUS}>{INCOMPLETE_STATUS}</option>
+                                                <option value={COMPLETED_STATUS}>{COMPLETED_STATUS}</option>
                                             </select>
                                         </td>
                                         <td className="px-4 py-4 text-right">
@@ -973,11 +1003,6 @@ function ServiceInvoicesPage({ token }) {
                     </button>
                 </div>
 
-                {errorMessage ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                        {errorMessage}
-                    </div>
-                ) : null}
             </form>
         </div>
     );
