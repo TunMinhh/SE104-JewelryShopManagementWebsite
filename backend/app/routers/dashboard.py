@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, require_admin
+from app.deps import get_db, get_current_employee
 from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.salesinvoice import SalesInvoice
@@ -25,7 +25,7 @@ def get_overview_trends(
     days: int = Query(default=30, ge=1, le=365),
     period: str = Query(default="days"),
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(require_admin),
+    current_employee: Employee = Depends(get_current_employee),
 ):
     today = date.today()
     if period == "week":

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.deps import format_code, get_db, require_admin
+from app.deps import format_code, get_db, get_current_employee
 from app.models.employee import Employee
 from app.models.product import Product
 from app.models.purchaseinvoice import PurchaseInvoice
@@ -28,7 +28,7 @@ def get_stock_report(
     year: int = Query(..., ge=2000, le=2100),
     month: int = Query(..., ge=1, le=12),
     db: Session = Depends(get_db),
-    current_employee: Employee = Depends(require_admin),
+    current_employee: Employee = Depends(get_current_employee),
 ):
     start_date = date(year, month, 1)
     end_date = date(year, month, monthrange(year, month)[1])

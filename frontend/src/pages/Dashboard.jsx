@@ -12,7 +12,7 @@ import AuditLogPage from "./AuditLogPage";
 
 function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, token, roleName = "Employee" }) {
     // State quản lý tab đang được chọn
-    const [activeTab, setActiveTab] = useState(roleName === "Admin" ? "overview" : "customers");
+    const [activeTab, setActiveTab] = useState("overview");
     // State quản lý đóng/mở sidebar trên mobile
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // State cho dữ liệu từ backend
@@ -158,7 +158,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
 
     // Danh sách các menu chức năng
     const menuItems = [
-        { id: "overview", name: "Tổng quan", roles: ["Admin"], icon: (
+        { id: "overview", name: "Tổng quan", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
         )},
         { id: "employees", name: "Quản lý nhân viên", roles: ["Admin"], icon: (
@@ -179,7 +179,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
         { id: "services", name: "Quản lý phiếu dịch vụ", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"></path></svg>
         )},
-        { id: "inventory-report", name: "Báo cáo tồn kho", roles: ["Admin"], icon: (
+        { id: "inventory-report", name: "Báo cáo tồn kho", roles: ["Admin", "Employee"], icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-6m3 6V7m3 10v-4m4 6H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2z"></path></svg>
         )},
         { id: "audit-log", name: "Nhật ký hoạt động", roles: ["Admin"], icon: (
