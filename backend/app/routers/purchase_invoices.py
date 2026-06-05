@@ -145,7 +145,7 @@ def _get_purchase_invoice_or_404(invoice_id: int, db: Session):
 def list_purchase_invoices(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     invoices = (
         _get_purchase_invoice_query(db)
-        .order_by(PurchaseInvoice.createddate.desc(), PurchaseInvoice.purchaseinvoiceid.desc())
+        .order_by(PurchaseInvoice.purchaseinvoiceid.asc())
         .all()
     )
     return [_serialize_purchase_invoice(invoice) for invoice in invoices]

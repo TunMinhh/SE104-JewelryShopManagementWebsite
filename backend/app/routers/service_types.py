@@ -20,5 +20,5 @@ def _serialize_service_type(service_type: ServiceType):
 @router.get("")
 @router.get("/", include_in_schema=False)
 def list_service_types(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
-    service_types = db.query(ServiceType).order_by(ServiceType.servicename.asc(), ServiceType.servicetypeid.asc()).all()
+    service_types = db.query(ServiceType).order_by(ServiceType.servicetypeid.asc()).all()
     return [_serialize_service_type(service_type) for service_type in service_types]

@@ -64,7 +64,7 @@ def create_supplier(
 @router.get("")
 @router.get("/", include_in_schema=False)
 def list_suppliers(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
-    suppliers = db.query(Supplier).all()
+    suppliers = db.query(Supplier).order_by(Supplier.supplierid.asc()).all()
     return [_serialize_supplier(supplier) for supplier in suppliers]
 
 

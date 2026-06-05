@@ -201,7 +201,7 @@ def _get_service_invoice_or_404(invoice_id: int, db: Session):
 def list_service_invoices(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     invoices = (
         _get_service_invoice_query(db)
-        .order_by(ServiceInvoice.createddate.desc(), ServiceInvoice.serviceinvoiceid.desc())
+        .order_by(ServiceInvoice.serviceinvoiceid.asc())
         .all()
     )
     return [_serialize_service_invoice(invoice) for invoice in invoices]

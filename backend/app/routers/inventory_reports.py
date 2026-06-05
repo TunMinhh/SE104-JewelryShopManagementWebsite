@@ -80,7 +80,7 @@ def get_stock_report(
     products = (
         db.query(Product)
         .options(joinedload(Product.category))
-        .order_by(Product.productname.asc(), Product.productid.asc())
+        .order_by(Product.productid.asc())
         .all()
     )
 

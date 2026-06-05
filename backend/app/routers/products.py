@@ -136,7 +136,7 @@ def _validate_product_payload(payload: ProductPayload, db: Session, product_id: 
 @router.get("")
 @router.get("/", include_in_schema=False)
 def list_products(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
-    products = db.query(Product).options(joinedload(Product.category)).all()
+    products = db.query(Product).options(joinedload(Product.category)).order_by(Product.productid.asc()).all()
     current_quantities = _get_current_quantities(db)
     return [_serialize_product(product, current_quantities.get(product.productid, 0)) for product in products]
 

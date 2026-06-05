@@ -78,7 +78,7 @@ def _validate_employee_payload(payload: EmployeePayload, db: Session, employee_i
 @router.get("")
 @router.get("/", include_in_schema=False)
 def list_employees(db: Session = Depends(get_db), current_employee: Employee = Depends(require_admin)):
-    employees = db.query(Employee).join(Role, Role.roleid == Employee.roleid).all()
+    employees = db.query(Employee).join(Role, Role.roleid == Employee.roleid).order_by(Employee.employeeid.asc()).all()
     return [_serialize_employee(employee) for employee in employees]
 
 

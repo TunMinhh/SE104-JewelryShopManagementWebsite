@@ -37,7 +37,7 @@ def _get_customer_or_404(customer_id: int, db: Session):
 @router.get("")
 @router.get("/", include_in_schema=False)
 def list_customers(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
-    customers = db.query(Customer).all()
+    customers = db.query(Customer).order_by(Customer.customerid.asc()).all()
     return [_serialize_customer(customer) for customer in customers]
 
 

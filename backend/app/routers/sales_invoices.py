@@ -190,7 +190,7 @@ def _get_sales_invoice_or_404(invoice_id: int, db: Session):
 def list_sales_invoices(db: Session = Depends(get_db), current_employee: Employee = Depends(get_current_employee)):
     invoices = (
         _get_sales_invoice_query(db)
-        .order_by(SalesInvoice.createddate.desc(), SalesInvoice.salesinvoiceid.desc())
+        .order_by(SalesInvoice.salesinvoiceid.asc())
         .all()
     )
     return [_serialize_sales_invoice(invoice) for invoice in invoices]
