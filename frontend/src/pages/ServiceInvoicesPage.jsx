@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import DateInput from "../components/DateInput";
 import { displayCode, formatCode } from "../lib/displayCodes";
-import { formatCurrency, formatDate, escapeHtml, formatDateInput, parseDateInput, toIsoDate } from "../lib/formatters";
+import { formatCurrency, formatDate, escapeHtml, toIsoDate } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
@@ -847,12 +848,9 @@ function ServiceInvoicesPage({ token }) {
 
                     <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                         <span className="text-sm font-medium text-stone-700">Ngày lập</span>
-                        <input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="dd/mm/yyyy"
-                            value={formatDateInput(form.createddate)}
-                            onChange={(event) => updateFormField("createddate", parseDateInput(event.target.value))}
+                        <DateInput
+                            value={form.createddate}
+                            onChange={(value) => updateFormField("createddate", value)}
                             className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
                         />
                     </label>
@@ -959,12 +957,9 @@ function ServiceInvoicesPage({ token }) {
                                         </td>
                                         <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(getLineRemaining(item))}đ</td>
                                         <td className="px-4 py-4">
-                                            <input
-                                                type="text"
-                                                inputMode="numeric"
-                                                placeholder="dd/mm/yyyy"
-                                                value={formatDateInput(item.deliverydate)}
-                                                onChange={(event) => updateLineItem(index, "deliverydate", parseDateInput(event.target.value))}
+                                            <DateInput
+                                                value={item.deliverydate}
+                                                onChange={(value) => updateLineItem(index, "deliverydate", value)}
                                                 disabled={getLineStatus(item) !== COMPLETED_STATUS}
                                                 className="w-40 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
                                             />

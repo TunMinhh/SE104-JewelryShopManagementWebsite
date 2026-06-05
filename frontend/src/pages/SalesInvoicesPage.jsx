@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { buildApiUrl } from "../lib/api";
+import DateInput from "../components/DateInput";
 import { displayCode, formatCode } from "../lib/displayCodes";
-import { formatCurrency, formatQuantity, escapeHtml, formatDateInput, parseDateInput, toIsoDate } from "../lib/formatters";
+import { formatCurrency, formatQuantity, escapeHtml, toIsoDate } from "../lib/formatters";
 import useDebouncedValue from "../lib/useDebouncedValue";
 
 const emptyLineItem = () => ({
@@ -666,12 +667,9 @@ function SalesInvoicesPage({ token }) {
 
                     <label className="block rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
                         <span className="text-sm font-medium text-stone-700">Ngày lập</span>
-                        <input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="dd/mm/yyyy"
-                            value={formatDateInput(form.createddate)}
-                            onChange={(event) => updateFormField("createddate", parseDateInput(event.target.value))}
+                        <DateInput
+                            value={form.createddate}
+                            onChange={(value) => updateFormField("createddate", value)}
                             className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
                         />
                     </label>
