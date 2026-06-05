@@ -74,6 +74,7 @@ function buildStockReportHtml(reportMonth, reportItems) {
 function InventoryReportPage({ token }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [reportMonth, setReportMonth] = useState(getCurrentMonthValue);
+    const [activeTab, setActiveTab] = useState("stock");
     const [reportItems, setReportItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
@@ -167,6 +168,58 @@ function InventoryReportPage({ token }) {
         URL.revokeObjectURL(link.href);
     };
 
+    const sortedByPurchased = [...reportItems]
+        .filter((item) => Number(item.purchasedquantity || 0) > 0)
+        .sort((left, right) => Number(right.purchasedquantity || 0) - Number(left.purchasedquantity || 0));
+
+    const sortedBySold = [...reportItems]
+        .filter((item) => Number(item.soldquantity || 0) > 0)
+        .sort((left, right) => Number(right.soldquantity || 0) - Number(left.soldquantity || 0));
+
+    const sortedByClosing = [...reportItems]
+        .filter((item) => Number(item.closingquantity || 0) > 0)
+        .sort((left, right) => Number(right.closingquantity || 0) - Number(left.closingquantity || 0));
+
+    const lowStockItems = [...reportItems]
+        .filter((item) => Number(item.closingquantity || 0) <= 0)
+        .sort((left, right) => Number(left.closingquantity || 0) - Number(right.closingquantity || 0));
+
+    const totalPurchased = reportItems.reduce((sum, item) => sum + Number(item.purchasedquantity || 0), 0);
+    const totalSold = reportItems.reduce((sum, item) => sum + Number(item.soldquantity || 0), 0);
+    const totalClosing = reportItems.reduce((sum, item) => sum + Number(item.closingquantity || 0), 0);
+
+    const renderStatsTable = (title, items, quantityKey, emptyText) => (
+        <div className="rounded-2xl border border-stone-200 bg-white shadow-sm">
+            <div className="border-b border-stone-200 px-5 py-4">
+                <h4 className="text-base font-semibold text-stone-800">{title}</h4>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px]">
+                    <thead className="bg-stone-50 border-b border-stone-200">
+                        <tr>
+                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mã SP</th>
+                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">Sản phẩm</th>
+                            <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-stone-600">Số lượng</th>
+                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">ĐVT</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-200">
+                        {items.length === 0 ? (
+                            <tr><td colSpan="4" className="px-5 py-5 text-center text-stone-400">{emptyText}</td></tr>
+                        ) : items.slice(0, 5).map((item) => (
+                            <tr key={`${quantityKey}-${item.productid}`} className="hover:bg-stone-50">
+                                <td className="px-5 py-4 text-sm font-semibold text-stone-800">{displayCode(item, "productcode", "SP", "productid")}</td>
+                                <td className="px-5 py-4 text-sm text-stone-800">{item.productname}</td>
+                                <td className="px-5 py-4 text-right text-sm font-medium text-stone-800">{formatQuantity(item[quantityKey])}</td>
+                                <td className="px-5 py-4 text-sm text-stone-600">{item.unitofmeasure || "-"}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     return (
         <div className="space-y-6">
             {errorMessage ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div> : null}
@@ -198,6 +251,52 @@ function InventoryReportPage({ token }) {
                 </div>
             </div>
 
+            <div className="inline-flex rounded-xl bg-stone-100 p-1 text-sm font-medium text-stone-600">
+                <button
+                    type="button"
+                    onClick={() => setActiveTab("stock")}
+                    className={`rounded-lg px-4 py-2 transition ${activeTab === "stock" ? "bg-white text-stone-900 shadow-sm" : "hover:text-stone-800"}`}
+                >
+                    Báo cáo tồn kho
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setActiveTab("stats")}
+                    className={`rounded-lg px-4 py-2 transition ${activeTab === "stats" ? "bg-white text-stone-900 shadow-sm" : "hover:text-stone-800"}`}
+                >
+                    Thống kê
+                </button>
+            </div>
+
+            {activeTab === "stats" ? (
+                <div className="space-y-5">
+                    <div className="grid gap-4 md:grid-cols-4">
+                        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                            <div className="text-sm text-stone-500">Tổng nhập trong kỳ</div>
+                            <div className="mt-2 text-xl font-semibold text-stone-800">{formatQuantity(totalPurchased)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                            <div className="text-sm text-stone-500">Tổng bán trong kỳ</div>
+                            <div className="mt-2 text-xl font-semibold text-stone-800">{formatQuantity(totalSold)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                            <div className="text-sm text-stone-500">Tổng tồn cuối kỳ</div>
+                            <div className="mt-2 text-xl font-semibold text-stone-800">{formatQuantity(totalClosing)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                            <div className="text-sm text-stone-500">Sản phẩm hết tồn</div>
+                            <div className="mt-2 text-xl font-semibold text-red-600">{lowStockItems.length}</div>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-5 xl:grid-cols-2">
+                        {renderStatsTable("Sản phẩm được mua vào nhiều nhất", sortedByPurchased, "purchasedquantity", "Không có sản phẩm nhập trong kỳ")}
+                        {renderStatsTable("Sản phẩm bán ra nhiều nhất", sortedBySold, "soldquantity", "Không có sản phẩm bán trong kỳ")}
+                        {renderStatsTable("Sản phẩm tồn kho nhiều nhất", sortedByClosing, "closingquantity", "Không có dữ liệu tồn cuối kỳ")}
+                        {renderStatsTable("Sản phẩm hết tồn hoặc tồn âm", lowStockItems, "closingquantity", "Không có sản phẩm hết tồn")}
+                    </div>
+                </div>
+            ) : (
             <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[960px] border-collapse border border-stone-900 text-sm">
@@ -244,6 +343,7 @@ function InventoryReportPage({ token }) {
                     </table>
                 </div>
             </div>
+            )}
         </div>
     );
 }

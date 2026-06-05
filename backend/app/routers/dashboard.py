@@ -23,13 +23,20 @@ def _calc_change_percent(current: float, previous: float):
 @router.get("/trends")
 def get_overview_trends(
     days: int = Query(default=30, ge=1, le=365),
+    period: str = Query(default="days"),
     db: Session = Depends(get_db),
     current_employee: Employee = Depends(require_admin),
 ):
     today = date.today()
-    current_start = today - timedelta(days=days - 1)
-    previous_end = current_start - timedelta(days=1)
-    previous_start = previous_end - timedelta(days=days - 1)
+    if period == "week":
+        current_start = today - timedelta(days=today.weekday())
+        previous_start = current_start - timedelta(days=7)
+        previous_end = current_start - timedelta(days=1)
+        days = 7
+    else:
+        current_start = today - timedelta(days=days - 1)
+        previous_end = current_start - timedelta(days=1)
+        previous_start = previous_end - timedelta(days=days - 1)
 
     sales_count_current = (
         db.query(func.count(SalesInvoice.salesinvoiceid))
@@ -76,6 +83,7 @@ def get_overview_trends(
 
     return {
         "period_days": days,
+        "period": period,
         "ranges": {
             "current": {
                 "start": current_start.isoformat(),

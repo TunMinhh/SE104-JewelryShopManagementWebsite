@@ -21,7 +21,8 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
         servicesCount: 0,
         customersCount: 0,
         salesTotal: 0,
-        trendPeriodDays: 30,
+        trendLabel: "tuần trước",
+        trendRanges: null,
         trends: {
             salesTotal: null,
             salesCount: null,
@@ -77,7 +78,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                 fetch(buildApiUrl("/invoices/sales"), { headers }),
                 fetch(buildApiUrl("/service-invoices/count"), { headers }),
                 fetch(buildApiUrl("/customers/count"), { headers }),
-                fetch(buildApiUrl("/dashboard/trends?days=30"), { headers }),
+                fetch(buildApiUrl("/dashboard/trends?period=week"), { headers }),
             ]);
 
             let salesData = [];
@@ -90,7 +91,8 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                 servicesCount: null,
                 customersCount: null,
             };
-            let trendPeriodDays = 30;
+            let trendLabel = "tuần trước";
+            let trendRanges = null;
 
             const responses = [salesResponse, servicesResponse, customersResponse, trendsResponse];
             if (responses.some((response) => response.status === 401)) {
@@ -116,7 +118,13 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
 
             if (trendsResponse.ok) {
                 const trendData = await trendsResponse.json();
-                trendPeriodDays = trendData.period_days || 30;
+                trendRanges = trendData.ranges || null;
+                totalSales = trendData.sales_total?.current ?? totalSales;
+                salesData = salesData.filter((invoice) => {
+                    if (!invoice?.invoicedate || !trendData.ranges?.current?.start || !trendData.ranges?.current?.end) return true;
+                    return invoice.invoicedate >= trendData.ranges.current.start && invoice.invoicedate <= trendData.ranges.current.end;
+                });
+                servicesCount = trendData.services_count?.current ?? servicesCount;
                 trends = {
                     salesTotal: trendData.sales_total?.change_percent ?? null,
                     salesCount: trendData.sales_count?.change_percent ?? null,
@@ -130,7 +138,8 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                 servicesCount: servicesCount,
                 customersCount: customersCount,
                 salesTotal: totalSales,
-                trendPeriodDays,
+                trendLabel,
+                trendRanges,
                 trends,
             });
 
@@ -286,9 +295,9 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                             {/* Thống kê nhanh */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {[
-                                    { title: "Tổng doanh thu bán", value: `${(stats.salesTotal / 1000000).toFixed(1)}M`, trend: stats.trends.salesTotal },
-                                    { title: "Đơn hàng bán", value: stats.salesCount, trend: stats.trends.salesCount },
-                                    { title: "Phiếu dịch vụ", value: stats.servicesCount, trend: stats.trends.servicesCount },
+                                    { title: "Doanh thu tuần này", value: `${(stats.salesTotal / 1000000).toFixed(1)}M`, trend: stats.trends.salesTotal },
+                                    { title: "Đơn bán tuần này", value: stats.salesCount, trend: stats.trends.salesCount },
+                                    { title: "Phiếu dịch vụ tuần này", value: stats.servicesCount, trend: stats.trends.servicesCount },
                                     { title: "Khách hàng", value: stats.customersCount, trend: stats.trends.customersCount },
                                 ].map((stat, idx) => (
                                     <div key={idx} className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm">
@@ -299,7 +308,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                                                 {loading && activeTab === "overview" ? "..." : formatTrendLabel(stat.trend)}
                                             </span>
                                         </div>
-                                        <p className="mt-2 text-xs text-stone-400">So với {stats.trendPeriodDays} ngày trước</p>
+                                        <p className="mt-2 text-xs text-stone-400">So với {stats.trendLabel}</p>
                                     </div>
                                 ))}
                             </div>
