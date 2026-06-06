@@ -1282,6 +1282,14 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                         </div>
                     </div>
 
+                    <div className="flex items-center gap-4">
+                        <div className="h-px flex-1 bg-stone-200" />
+                        <div className="rounded-full border border-stone-200 bg-white px-5 py-2 text-sm font-semibold uppercase text-stone-600 shadow-sm">
+                            Hóa đơn gốc
+                        </div>
+                        <div className="h-px flex-1 bg-stone-200" />
+                    </div>
+
                     <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[1220px]">
