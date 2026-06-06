@@ -11,11 +11,13 @@ const emptyLineItem = () => ({
     quantity: "1",
     paidamount: "",
     deliverydate: "",
-    status: "Chưa hoàn thành",
+    status: "Chưa giao",
 });
 
 const COMPLETED_STATUS = "Hoàn thành";
 const INCOMPLETE_STATUS = "Chưa hoàn thành";
+const DELIVERED_STATUS = "Đã giao";
+const UNDELIVERED_STATUS = "Chưa giao";
 
 const emptyForm = () => ({
     customerid: "",
@@ -28,6 +30,11 @@ const emptyNewCustomer = () => ({
     phonenumber: "",
 });
 
+const emptyServiceTypeForm = () => ({
+    servicename: "",
+    defaultserviceprice: "",
+});
+
 function getTodayDateString() {
     const now = new Date();
     const year = now.getFullYear();
@@ -36,7 +43,7 @@ function getTodayDateString() {
     return `${year}-${month}-${day}`;
 }
 
-function ServiceInvoicesPage({ token }) {
+function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [serviceInvoices, setServiceInvoices] = useState([]);
     const [customers, setCustomers] = useState([]);
@@ -51,6 +58,9 @@ function ServiceInvoicesPage({ token }) {
     const [form, setForm] = useState(emptyForm);
     const [customerMode, setCustomerMode] = useState("existing");
     const [newCustomer, setNewCustomer] = useState(emptyNewCustomer);
+    const [editingServiceTypeId, setEditingServiceTypeId] = useState(null);
+    const [serviceTypeForm, setServiceTypeForm] = useState(emptyServiceTypeForm);
+    const [serviceTypeSubmitting, setServiceTypeSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
@@ -154,15 +164,15 @@ function ServiceInvoicesPage({ token }) {
     const getLineRemaining = (item) => Math.max(getLineTotal(item) - Number(item.paidamount || 0), 0);
 
     const getLineStatus = (item) => {
-        if (item.status === "Đã giao") return COMPLETED_STATUS;
-        if (item.status === "Chưa giao") return INCOMPLETE_STATUS;
-        return item.status || (item.deliverydate ? COMPLETED_STATUS : INCOMPLETE_STATUS);
+        if (item.status === COMPLETED_STATUS) return DELIVERED_STATUS;
+        if (item.status === INCOMPLETE_STATUS) return UNDELIVERED_STATUS;
+        return item.status || (item.deliverydate ? DELIVERED_STATUS : UNDELIVERED_STATUS);
     };
 
     const formTotal = form.items.reduce((sum, item) => sum + getLineTotal(item), 0);
     const formPaidTotal = form.items.reduce((sum, item) => sum + Number(item.paidamount || 0), 0);
     const formRemainingTotal = Math.max(formTotal - formPaidTotal, 0);
-    const formStatus = form.items.length > 0 && form.items.every((item) => getLineStatus(item) === COMPLETED_STATUS) ? COMPLETED_STATUS : INCOMPLETE_STATUS;
+    const formStatus = form.items.length > 0 && form.items.every((item) => getLineStatus(item) === DELIVERED_STATUS) ? COMPLETED_STATUS : INCOMPLETE_STATUS;
 
     const normalizedSearchTerm = debouncedSearchTerm.trim().toLowerCase();
     const filteredServiceInvoices = serviceInvoices.filter((invoice) => {
@@ -388,7 +398,7 @@ function ServiceInvoicesPage({ token }) {
                     return {
                         ...item,
                         status: normalizedValue,
-                        deliverydate: normalizedValue === COMPLETED_STATUS ? item.deliverydate || getTodayDateString() : "",
+                        deliverydate: normalizedValue === DELIVERED_STATUS ? item.deliverydate || getTodayDateString() : "",
                     };
                 }
 
@@ -396,7 +406,7 @@ function ServiceInvoicesPage({ token }) {
                     return {
                         ...item,
                         deliverydate: normalizedValue,
-                        status: normalizedValue ? COMPLETED_STATUS : INCOMPLETE_STATUS,
+                        status: normalizedValue ? DELIVERED_STATUS : UNDELIVERED_STATUS,
                     };
                 }
 
@@ -540,7 +550,7 @@ function ServiceInvoicesPage({ token }) {
 
         for (let index = 0; index < form.items.length; index += 1) {
             const item = form.items[index];
-            if (getLineStatus(item) === COMPLETED_STATUS && !toIsoDate(item.deliverydate)) {
+            if (getLineStatus(item) === DELIVERED_STATUS && !toIsoDate(item.deliverydate)) {
                 setErrorMessage(`Dòng ${index + 1}: Vui lòng nhập ngày giao theo định dạng dd/mm/yyyy.`);
                 return;
             }
@@ -613,7 +623,7 @@ function ServiceInvoicesPage({ token }) {
                     extraamount: Number(item.extraamount || 0),
                     actualprice: getLineActualPrice(item),
                     paidamount: Number(item.paidamount || 0),
-                    deliverydate: getLineStatus(item) === COMPLETED_STATUS ? (toIsoDate(item.deliverydate) || getTodayDateString()) : null,
+                    deliverydate: getLineStatus(item) === DELIVERED_STATUS ? (toIsoDate(item.deliverydate) || getTodayDateString()) : null,
                 })),
             };
 
@@ -675,6 +685,58 @@ function ServiceInvoicesPage({ token }) {
         }
     };
 
+    const resetServiceTypeForm = () => {
+        setEditingServiceTypeId(null);
+        setServiceTypeForm(emptyServiceTypeForm());
+    };
+
+    const openEditServiceType = (serviceType) => {
+        setEditingServiceTypeId(serviceType.servicetypeid);
+        setServiceTypeForm({
+            servicename: serviceType.servicename || "",
+            defaultserviceprice: String(serviceType.defaultserviceprice || ""),
+        });
+        setErrorMessage("");
+    };
+
+    const handleServiceTypeSubmit = async (event) => {
+        event.preventDefault();
+        setErrorMessage("");
+        if (!serviceTypeForm.servicename.trim() || Number(serviceTypeForm.defaultserviceprice) < 0) {
+            setErrorMessage("Vui lòng nhập tên loại dịch vụ và đơn giá mặc định hợp lệ.");
+            return;
+        }
+
+        setServiceTypeSubmitting(true);
+        try {
+            await fetchJson(editingServiceTypeId ? `/service-types/${editingServiceTypeId}` : "/service-types", {
+                method: editingServiceTypeId ? "PUT" : "POST",
+                body: JSON.stringify({
+                    servicename: serviceTypeForm.servicename.trim(),
+                    defaultserviceprice: Number(serviceTypeForm.defaultserviceprice || 0),
+                }),
+            });
+            resetServiceTypeForm();
+            await loadBaseData();
+        } catch (error) {
+            setErrorMessage(error.message || "Không thể lưu loại dịch vụ");
+        } finally {
+            setServiceTypeSubmitting(false);
+        }
+    };
+
+    const handleDeleteServiceType = async (serviceType) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn xóa loại dịch vụ ${displayCode(serviceType, "servicetypecode", "DV", "servicetypeid")}?`)) return;
+        setErrorMessage("");
+        try {
+            await fetchJson(`/service-types/${serviceType.servicetypeid}`, { method: "DELETE" });
+            if (editingServiceTypeId === serviceType.servicetypeid) resetServiceTypeForm();
+            await loadBaseData();
+        } catch (error) {
+            setErrorMessage(error.message || "Không thể xóa loại dịch vụ");
+        }
+    };
+
     const renderListView = () => (
         <div className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -688,6 +750,60 @@ function ServiceInvoicesPage({ token }) {
                     <button type="button" onClick={openCreateView} className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-stone-950 transition hover:bg-amber-400">Tạo phiếu dịch vụ</button>
                 </div>
             </div>
+
+            {canManageServiceTypes ? (
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+                    <div className="rounded-2xl border border-stone-200 bg-white shadow-sm">
+                        <div className="border-b border-stone-200 px-5 py-4">
+                            <h4 className="text-base font-semibold text-stone-800">Loại dịch vụ</h4>
+                            <p className="mt-1 text-sm text-stone-500">Thêm hoặc cập nhật đơn giá mặc định của dịch vụ.</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[560px]">
+                                <thead className="bg-stone-50 border-b border-stone-200">
+                                    <tr>
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">Mã DV</th>
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">Tên dịch vụ</th>
+                                        <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-stone-600">Đơn giá mặc định</th>
+                                        <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-stone-600">Tác vụ</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-stone-200">
+                                    {serviceTypes.map((serviceType) => (
+                                        <tr key={serviceType.servicetypeid}>
+                                            <td className="px-5 py-4 text-sm font-semibold text-stone-800">{displayCode(serviceType, "servicetypecode", "DV", "servicetypeid")}</td>
+                                            <td className="px-5 py-4 text-sm text-stone-800">{serviceType.servicename}</td>
+                                            <td className="px-5 py-4 text-right text-sm text-stone-600">{formatCurrency(serviceType.defaultserviceprice)}đ</td>
+                                            <td className="px-5 py-4">
+                                                <div className="flex justify-end gap-2">
+                                                    <button type="button" onClick={() => openEditServiceType(serviceType)} className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50">Sửa</button>
+                                                    <button type="button" onClick={() => handleDeleteServiceType(serviceType)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50">Xóa</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <form onSubmit={handleServiceTypeSubmit} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                        <h4 className="text-base font-semibold text-stone-800">{editingServiceTypeId ? `Sửa loại ${formatCode("DV", editingServiceTypeId)}` : "Thêm loại dịch vụ"}</h4>
+                        <label className="mt-4 block">
+                            <span className="text-sm font-medium text-stone-700">Tên loại dịch vụ</span>
+                            <input type="text" value={serviceTypeForm.servicename} onChange={(event) => setServiceTypeForm((current) => ({ ...current, servicename: event.target.value }))} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400" />
+                        </label>
+                        <label className="mt-4 block">
+                            <span className="text-sm font-medium text-stone-700">Đơn giá mặc định</span>
+                            <input type="number" min="0" step="1" value={serviceTypeForm.defaultserviceprice} onChange={(event) => setServiceTypeForm((current) => ({ ...current, defaultserviceprice: event.target.value }))} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400" />
+                        </label>
+                        <div className="mt-5 flex justify-end gap-3">
+                            {editingServiceTypeId ? <button type="button" onClick={resetServiceTypeForm} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-semibold text-stone-700 hover:bg-stone-50">Hủy sửa</button> : null}
+                            <button type="submit" disabled={serviceTypeSubmitting} className="rounded-xl bg-stone-900 px-4 py-3 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-60">{serviceTypeSubmitting ? "Đang lưu..." : editingServiceTypeId ? "Cập nhật loại" : "Lưu loại"}</button>
+                        </div>
+                    </form>
+                </div>
+            ) : null}
 
             <div className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_220px_180px_auto_auto] md:items-end">
                 <label className="block">
@@ -945,22 +1061,31 @@ function ServiceInvoicesPage({ token }) {
                                         </td>
                                         <td className="px-4 py-4 text-sm font-medium text-stone-800">{formatCurrency(getLineTotal(item))}đ</td>
                                         <td className="px-4 py-4">
-                                            <input
-                                                type="text"
-                                                inputMode="numeric"
-                                                pattern="[0-9]*"
-                                                placeholder="0"
-                                                value={item.paidamount}
-                                                onChange={(event) => updateLineItem(index, "paidamount", event.target.value)}
-                                                className="w-36 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
-                                            />
+                                            <div className="flex min-w-[220px] gap-2">
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    pattern="[0-9]*"
+                                                    placeholder="0"
+                                                    value={item.paidamount}
+                                                    onChange={(event) => updateLineItem(index, "paidamount", event.target.value)}
+                                                    className="w-32 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => updateLineItem(index, "paidamount", String(Math.round(getLineTotal(item))))}
+                                                    className="whitespace-nowrap rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                                                >
+                                                    Trả đủ
+                                                </button>
+                                            </div>
                                         </td>
                                         <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(getLineRemaining(item))}đ</td>
                                         <td className="px-4 py-4">
                                             <DateInput
                                                 value={item.deliverydate}
                                                 onChange={(value) => updateLineItem(index, "deliverydate", value)}
-                                                disabled={getLineStatus(item) !== COMPLETED_STATUS}
+                                                disabled={getLineStatus(item) !== DELIVERED_STATUS}
                                                 className="w-40 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
                                             />
                                         </td>
@@ -970,8 +1095,8 @@ function ServiceInvoicesPage({ token }) {
                                                 onChange={(event) => updateLineItem(index, "status", event.target.value)}
                                                 className="w-44 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
                                             >
-                                                <option value={INCOMPLETE_STATUS}>{INCOMPLETE_STATUS}</option>
-                                                <option value={COMPLETED_STATUS}>{COMPLETED_STATUS}</option>
+                                                <option value={UNDELIVERED_STATUS}>{UNDELIVERED_STATUS}</option>
+                                                <option value={DELIVERED_STATUS}>{DELIVERED_STATUS}</option>
                                             </select>
                                         </td>
                                         <td className="px-4 py-4 text-right">
@@ -1012,6 +1137,9 @@ function ServiceInvoicesPage({ token }) {
                 </div>
                 {selectedInvoice ? (
                     <div className="flex flex-wrap gap-3">
+                        {Number(selectedInvoice.remainingamount || 0) > 0 ? (
+                            <button type="button" onClick={() => openEditView(selectedInvoice.invoiceid)} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-500">Thanh toán phần còn lại</button>
+                        ) : null}
                         <button type="button" onClick={() => openEditView(selectedInvoice.invoiceid)} className="rounded-xl border border-amber-200 px-4 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-50">Chỉnh sửa</button>
                         <button type="button" onClick={() => handlePrintBm3(selectedInvoice.invoiceid)} className="rounded-xl border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">In phiếu</button>
                         <button type="button" onClick={() => handleDownloadBm3(selectedInvoice.invoiceid)} className="rounded-xl border border-sky-200 px-4 py-3 text-sm font-semibold text-sky-700 hover:bg-sky-50">Tải phiếu</button>

@@ -364,7 +364,7 @@ function Dashboard({ employeeName = "Nguyễn Văn A", onLogout, onAuthError, to
                     ) : activeTab === "purchases" ? (
                         <PurchaseInvoicesPage token={token} />
                     ) : activeTab === "services" ? (
-                        <ServiceInvoicesPage token={token} />
+                        <ServiceInvoicesPage token={token} canManageServiceTypes={roleName === "Admin"} />
                     ) : activeTab === "audit-log" ? (
                         <AuditLogPage token={token} />
                     ) : (

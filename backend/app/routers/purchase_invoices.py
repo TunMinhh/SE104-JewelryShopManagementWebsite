@@ -4,6 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.deps import format_code, get_db, get_current_employee, to_float, log_action
@@ -11,6 +12,7 @@ from app.models.employee import Employee
 from app.models.product import Product
 from app.models.purchaseinvoicedetail import PurchaseInvoiceDetail
 from app.models.purchaseinvoice import PurchaseInvoice
+from app.models.salesinvoicedetail import SalesInvoiceDetail
 from app.models.supplier import Supplier
 
 router = APIRouter()
@@ -98,6 +100,42 @@ def _validate_purchase_invoice_payload(payload: PurchaseInvoicePayload, db: Sess
         )
 
     return supplier, product_map
+
+
+def _validate_stock_after_purchase_change(
+    invoice: PurchaseInvoice,
+    replacement_items: List[PurchaseInvoiceLineItemPayload],
+    db: Session,
+):
+    current_product_ids = {detail.productid for detail in invoice.details}
+    replacement_quantities = {item.productid: item.quantity for item in replacement_items}
+    affected_product_ids = current_product_ids | set(replacement_quantities)
+
+    for product_id in affected_product_ids:
+        purchased_excluding_invoice = (
+            db.query(func.coalesce(func.sum(PurchaseInvoiceDetail.quantity), 0))
+            .filter(
+                PurchaseInvoiceDetail.productid == product_id,
+                PurchaseInvoiceDetail.purchaseinvoiceid != invoice.purchaseinvoiceid,
+            )
+            .scalar()
+            or 0
+        )
+        sold_quantity = (
+            db.query(func.coalesce(func.sum(SalesInvoiceDetail.quantity), 0))
+            .filter(SalesInvoiceDetail.productid == product_id)
+            .scalar()
+            or 0
+        )
+        resulting_quantity = Decimal(str(purchased_excluding_invoice)) + Decimal(str(replacement_quantities.get(product_id, 0))) - Decimal(str(sold_quantity))
+
+        if resulting_quantity < 0:
+            product = db.query(Product).filter(Product.productid == product_id).first()
+            product_name = product.productname if product else format_code("SP", product_id)
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Không thể sửa hoặc xóa phiếu mua vì tồn kho của {product_name} sẽ bị âm",
+            )
 
 
 def _replace_purchase_invoice_details(invoice: PurchaseInvoice, payload: PurchaseInvoicePayload, db: Session):
@@ -188,6 +226,7 @@ def update_purchase_invoice(
     current_employee: Employee = Depends(get_current_employee),
 ):
     invoice = _get_purchase_invoice_or_404(invoice_id, db)
+    _validate_stock_after_purchase_change(invoice, payload.items, db)
     _replace_purchase_invoice_details(invoice, payload, db)
     db.commit()
     updated_invoice = _get_purchase_invoice_or_404(invoice_id, db)
@@ -201,12 +240,8 @@ def delete_purchase_invoice(
     db: Session = Depends(get_db),
     current_employee: Employee = Depends(get_current_employee),
 ):
-    invoice = db.query(PurchaseInvoice).filter(PurchaseInvoice.purchaseinvoiceid == invoice_id).first()
-    if not invoice:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Purchase invoice not found",
-        )
+    invoice = _get_purchase_invoice_or_404(invoice_id, db)
+    _validate_stock_after_purchase_change(invoice, [], db)
 
     db.delete(invoice)
     db.commit()
