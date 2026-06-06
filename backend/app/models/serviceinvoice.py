@@ -19,3 +19,4 @@ class ServiceInvoice(Base):
 
     customer = relationship("Customer", back_populates="serviceinvoices")
     details = relationship("ServiceInvoiceDetail", back_populates="invoice")
+    payments = relationship("ServicePayment", back_populates="invoice")

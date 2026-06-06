@@ -12,6 +12,7 @@ from app.models.customer import Customer
 from app.models.employee import Employee
 from app.models.serviceinvoice import ServiceInvoice
 from app.models.serviceinvoicedetail import ServiceInvoiceDetail
+from app.models.servicepayment import ServicePayment
 from app.models.servicetype import ServiceType
 
 router = APIRouter()
@@ -32,6 +33,12 @@ class ServiceInvoicePayload(BaseModel):
     items: List[ServiceInvoiceLineItemPayload] = Field(min_length=1)
 
 
+class ServicePaymentPayload(BaseModel):
+    amount: float = Field(gt=0)
+    paymentdate: date
+    note: str | None = None
+
+
 def _to_money(value):
     return Decimal(str(value)).quantize(Decimal("0.01"))
 
@@ -40,6 +47,7 @@ def _get_service_invoice_query(db: Session):
     return db.query(ServiceInvoice).options(
         joinedload(ServiceInvoice.customer),
         joinedload(ServiceInvoice.details).joinedload(ServiceInvoiceDetail.servicetype),
+        joinedload(ServiceInvoice.payments),
     )
 
 
@@ -131,9 +139,15 @@ def _replace_service_invoice_details(invoice: ServiceInvoice, payload: ServiceIn
         total_paid += paid_amount
         remaining_amount += line_remaining
 
+    additional_paid = sum((_to_money(payment.amount) for payment in invoice.payments), Decimal("0.00"))
     invoice.totalamount = total_amount.quantize(Decimal("0.01"))
-    invoice.totalpaid = total_paid.quantize(Decimal("0.01"))
-    invoice.remainingamount = remaining_amount.quantize(Decimal("0.01"))
+    invoice.totalpaid = (total_paid + additional_paid).quantize(Decimal("0.01"))
+    invoice.remainingamount = (invoice.totalamount - invoice.totalpaid).quantize(Decimal("0.01"))
+    if invoice.remainingamount < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tổng tiền sau khi sửa phiếu không được nhỏ hơn số tiền khách đã thanh toán",
+        )
     invoice.status = "Hoàn thành" if is_completed else "Chưa hoàn thành"
 
 
@@ -154,6 +168,15 @@ def _serialize_service_invoice_detail(detail: ServiceInvoiceDetail):
         "remainingamount": to_float(detail.remainingamount),
         "deliverydate": detail.deliverydate.isoformat() if detail.deliverydate else None,
         "status": "Đã giao" if is_delivered else "Chưa giao",
+    }
+
+
+def _serialize_service_payment(payment: ServicePayment):
+    return {
+        "paymentid": payment.servicepaymentid,
+        "amount": to_float(payment.amount),
+        "paymentdate": payment.paymentdate.isoformat() if payment.paymentdate else None,
+        "note": payment.note,
     }
 
 
@@ -179,6 +202,10 @@ def _serialize_service_invoice(invoice: ServiceInvoice, include_details: bool = 
     }
     if include_details:
         payload["details"] = [_serialize_service_invoice_detail(detail) for detail in ordered_details]
+        payload["payments"] = [
+            _serialize_service_payment(payment)
+            for payment in sorted(invoice.payments, key=lambda payment: payment.servicepaymentid or 0)
+        ]
     return payload
 
 
@@ -262,6 +289,37 @@ def update_service_invoice(
     return _serialize_service_invoice(updated_invoice, include_details=True)
 
 
+@router.post("/{invoice_id}/payments", status_code=status.HTTP_201_CREATED)
+def create_service_payment(
+    invoice_id: int,
+    payload: ServicePaymentPayload,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee),
+):
+    invoice = _get_service_invoice_or_404(invoice_id, db)
+    amount = _to_money(payload.amount)
+    remaining_amount = _to_money(invoice.remainingamount or 0)
+    if amount > remaining_amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Số tiền thanh toán không được lớn hơn khoản còn lại",
+        )
+
+    payment = ServicePayment(
+        serviceinvoiceid=invoice_id,
+        amount=amount,
+        paymentdate=payload.paymentdate,
+        note=payload.note.strip() if payload.note else None,
+    )
+    invoice.totalpaid = (_to_money(invoice.totalpaid or 0) + amount).quantize(Decimal("0.01"))
+    invoice.remainingamount = (remaining_amount - amount).quantize(Decimal("0.01"))
+    db.add(payment)
+    db.commit()
+    updated_invoice = _get_service_invoice_or_404(invoice_id, db)
+    log_action(db, current_employee.employeeid, "PAYMENT", "ServiceInvoice", invoice_id, f"Ghi nhận thanh toán phiếu dịch vụ {format_code('PDV', invoice_id)}")
+    return _serialize_service_invoice(updated_invoice, include_details=True)
+
+
 @router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_service_invoice(
     invoice_id: int,
@@ -277,6 +335,8 @@ def delete_service_invoice(
 
     for detail in db.query(ServiceInvoiceDetail).filter(ServiceInvoiceDetail.serviceinvoiceid == invoice_id).all():
         db.delete(detail)
+    for payment in db.query(ServicePayment).filter(ServicePayment.serviceinvoiceid == invoice_id).all():
+        db.delete(payment)
 
     db.delete(invoice)
     db.commit()

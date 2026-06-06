@@ -10,6 +10,7 @@ from app.models.salesinvoice import SalesInvoice
 from app.models.salesinvoicedetail import SalesInvoiceDetail
 from app.models.serviceinvoice import ServiceInvoice
 from app.models.serviceinvoicedetail import ServiceInvoiceDetail
+from app.models.servicepayment import ServicePayment
 from app.models.servicetype import ServiceType
 from app.models.supplier import Supplier
 from app.models.auditlog import AuditLog

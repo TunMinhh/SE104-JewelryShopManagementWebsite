@@ -43,6 +43,12 @@ function getTodayDateString() {
     return `${year}-${month}-${day}`;
 }
 
+const emptyPaymentForm = () => ({
+    amount: "",
+    paymentdate: getTodayDateString(),
+    note: "",
+});
+
 function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
     const authToken = token?.trim() || localStorage.getItem("access_token")?.trim() || "";
     const [serviceInvoices, setServiceInvoices] = useState([]);
@@ -61,6 +67,8 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
     const [editingServiceTypeId, setEditingServiceTypeId] = useState(null);
     const [serviceTypeForm, setServiceTypeForm] = useState(emptyServiceTypeForm);
     const [serviceTypeSubmitting, setServiceTypeSubmitting] = useState(false);
+    const [paymentForm, setPaymentForm] = useState(emptyPaymentForm);
+    const [paymentSubmitting, setPaymentSubmitting] = useState(false);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
@@ -247,7 +255,7 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                     <div class="meta-item">Số điện thoại: ${escapeHtml(invoice.customerphonenumber || "-")}</div>
                     <div class="meta-item full">
                         <div>Tổng tiền: ${escapeHtml(`${formatCurrency(invoice.totalamount)} đ`)}</div>
-                        <div>Tổng tiền trả trước: ${escapeHtml(`${formatCurrency(invoice.totalpaid)} đ`)}</div>
+                        <div>Tổng tiền đã thanh toán: ${escapeHtml(`${formatCurrency(invoice.totalpaid)} đ`)}</div>
                         <div>Tổng tiền còn lại: ${escapeHtml(`${formatCurrency(invoice.remainingamount)} đ`)}</div>
                     </div>
                 </div>
@@ -325,7 +333,7 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                 <th style="width: 12%;">Ngày lập</th>
                 <th style="width: 18%;">Khách hàng</th>
                 <th style="width: 14%;">Tổng tiền</th>
-                <th style="width: 14%;">Trả trước</th>
+                <th style="width: 14%;">Đã thanh toán</th>
                 <th style="width: 14%;">Còn lại</th>
                 <th style="width: 12%;">Tình trạng</th>
             </tr>
@@ -448,6 +456,7 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
         try {
             const invoice = await fetchJson(`/service-invoices/${invoiceId}`);
             setSelectedInvoice(invoice);
+            setPaymentForm(emptyPaymentForm());
             setView("detail");
         } catch (error) {
             setErrorMessage(error.message || "Không thể tải chi tiết phiếu dịch vụ");
@@ -690,6 +699,41 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
         setServiceTypeForm(emptyServiceTypeForm());
     };
 
+    const handlePaymentSubmit = async (event) => {
+        event.preventDefault();
+        setErrorMessage("");
+        const amount = Number(paymentForm.amount || 0);
+        const paymentDate = toIsoDate(paymentForm.paymentdate);
+
+        if (!selectedInvoice || amount <= 0 || !paymentDate) {
+            setErrorMessage("Vui lòng nhập số tiền thanh toán và ngày thanh toán hợp lệ.");
+            return;
+        }
+        if (amount > Number(selectedInvoice.remainingamount || 0)) {
+            setErrorMessage("Số tiền thanh toán không được lớn hơn khoản còn lại.");
+            return;
+        }
+
+        setPaymentSubmitting(true);
+        try {
+            const invoice = await fetchJson(`/service-invoices/${selectedInvoice.invoiceid}/payments`, {
+                method: "POST",
+                body: JSON.stringify({
+                    amount,
+                    paymentdate: paymentDate,
+                    note: paymentForm.note.trim(),
+                }),
+            });
+            setSelectedInvoice(invoice);
+            setPaymentForm(emptyPaymentForm());
+            await loadBaseData();
+        } catch (error) {
+            setErrorMessage(error.message || "Không thể ghi nhận thanh toán");
+        } finally {
+            setPaymentSubmitting(false);
+        }
+    };
+
     const openEditServiceType = (serviceType) => {
         setEditingServiceTypeId(serviceType.servicetypeid);
         setServiceTypeForm({
@@ -840,7 +884,7 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Dịch vụ</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Số dịch vụ</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tổng tiền</th>
-                                <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Trả trước</th>
+                                <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Đã thanh toán</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Còn lại</th>
                                 <th className="px-6 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tình trạng</th>
                                 <th className="px-6 py-3 text-right text-xs font-semibold text-stone-600 uppercase">Tác vụ</th>
@@ -1061,24 +1105,15 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                                         </td>
                                         <td className="px-4 py-4 text-sm font-medium text-stone-800">{formatCurrency(getLineTotal(item))}đ</td>
                                         <td className="px-4 py-4">
-                                            <div className="flex min-w-[220px] gap-2">
-                                                <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    pattern="[0-9]*"
-                                                    placeholder="0"
-                                                    value={item.paidamount}
-                                                    onChange={(event) => updateLineItem(index, "paidamount", event.target.value)}
-                                                    className="w-32 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => updateLineItem(index, "paidamount", String(Math.round(getLineTotal(item))))}
-                                                    className="whitespace-nowrap rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                                                >
-                                                    Trả đủ
-                                                </button>
-                                            </div>
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                placeholder="0"
+                                                value={item.paidamount}
+                                                onChange={(event) => updateLineItem(index, "paidamount", event.target.value)}
+                                                className="w-36 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none focus:border-amber-400"
+                                            />
                                         </td>
                                         <td className="px-4 py-4 text-sm text-stone-600">{formatCurrency(getLineRemaining(item))}đ</td>
                                         <td className="px-4 py-4">
@@ -1137,9 +1172,6 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                 </div>
                 {selectedInvoice ? (
                     <div className="flex flex-wrap gap-3">
-                        {Number(selectedInvoice.remainingamount || 0) > 0 ? (
-                            <button type="button" onClick={() => openEditView(selectedInvoice.invoiceid)} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-500">Thanh toán phần còn lại</button>
-                        ) : null}
                         <button type="button" onClick={() => openEditView(selectedInvoice.invoiceid)} className="rounded-xl border border-amber-200 px-4 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-50">Chỉnh sửa</button>
                         <button type="button" onClick={() => handlePrintBm3(selectedInvoice.invoiceid)} className="rounded-xl border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">In phiếu</button>
                         <button type="button" onClick={() => handleDownloadBm3(selectedInvoice.invoiceid)} className="rounded-xl border border-sky-200 px-4 py-3 text-sm font-semibold text-sky-700 hover:bg-sky-50">Tải phiếu</button>
@@ -1164,7 +1196,7 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                             <div className="mt-2 text-lg font-semibold text-stone-800">{formatCurrency(selectedInvoice.totalamount)}đ</div>
                         </div>
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-                            <div className="text-sm text-stone-500">Tổng trả trước</div>
+                            <div className="text-sm text-stone-500">Tổng đã thanh toán</div>
                             <div className="mt-2 text-lg font-semibold text-stone-800">{formatCurrency(selectedInvoice.totalpaid)}đ</div>
                         </div>
                         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
@@ -1184,6 +1216,72 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                         </div>
                     </div>
 
+                    <div className="grid gap-4 lg:grid-cols-[minmax(320px,0.7fr)_minmax(0,1.3fr)]">
+                        <form onSubmit={handlePaymentSubmit} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                            <h4 className="text-base font-semibold text-stone-800">Ghi nhận thanh toán thêm</h4>
+                            <p className="mt-1 text-sm text-stone-500">Tiền trả trước ban đầu được giữ nguyên. Mỗi lần trả thêm sẽ được lưu vào lịch sử.</p>
+                            <label className="mt-4 block">
+                                <span className="text-sm font-medium text-stone-700">Số tiền thanh toán</span>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={paymentForm.amount}
+                                    onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value.replace(/[^\d]/g, "") }))}
+                                    disabled={Number(selectedInvoice.remainingamount || 0) <= 0}
+                                    placeholder="0"
+                                    className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400 disabled:opacity-60"
+                                />
+                            </label>
+                            <label className="mt-4 block">
+                                <span className="text-sm font-medium text-stone-700">Ngày thanh toán</span>
+                                <DateInput
+                                    value={paymentForm.paymentdate}
+                                    onChange={(value) => setPaymentForm((current) => ({ ...current, paymentdate: value }))}
+                                    disabled={Number(selectedInvoice.remainingamount || 0) <= 0}
+                                    className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400"
+                                />
+                            </label>
+                            <label className="mt-4 block">
+                                <span className="text-sm font-medium text-stone-700">Ghi chú</span>
+                                <input type="text" value={paymentForm.note} onChange={(event) => setPaymentForm((current) => ({ ...current, note: event.target.value }))} disabled={Number(selectedInvoice.remainingamount || 0) <= 0} className="mt-3 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none focus:border-amber-400 disabled:opacity-60" />
+                            </label>
+                            <button type="submit" disabled={paymentSubmitting || Number(selectedInvoice.remainingamount || 0) <= 0} className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
+                                {paymentSubmitting ? "Đang ghi nhận..." : Number(selectedInvoice.remainingamount || 0) <= 0 ? "Đã thanh toán đủ" : "Ghi nhận thanh toán"}
+                            </button>
+                        </form>
+
+                        <div className="rounded-2xl border border-stone-200 bg-white shadow-sm">
+                            <div className="border-b border-stone-200 px-5 py-4">
+                                <h4 className="text-base font-semibold text-stone-800">Lịch sử thanh toán thêm</h4>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[560px]">
+                                    <thead className="bg-stone-50 border-b border-stone-200">
+                                        <tr>
+                                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">Lần</th>
+                                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">Ngày thanh toán</th>
+                                            <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-stone-600">Số tiền</th>
+                                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-stone-600">Ghi chú</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-stone-200">
+                                        {(selectedInvoice.payments || []).length === 0 ? (
+                                            <tr><td colSpan="4" className="px-5 py-5 text-center text-stone-400">Chưa có lần thanh toán thêm</td></tr>
+                                        ) : selectedInvoice.payments.map((payment, index) => (
+                                            <tr key={payment.paymentid || index}>
+                                                <td className="px-5 py-4 text-sm text-stone-700">{index + 1}</td>
+                                                <td className="px-5 py-4 text-sm text-stone-700">{formatDate(payment.paymentdate)}</td>
+                                                <td className="px-5 py-4 text-right text-sm font-medium text-stone-800">{formatCurrency(payment.amount)}đ</td>
+                                                <td className="px-5 py-4 text-sm text-stone-600">{payment.note || "-"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[1220px]">
@@ -1197,7 +1295,7 @@ function ServiceInvoicesPage({ token, canManageServiceTypes = false }) {
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Số lượng</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Thành tiền</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Trả trước</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Còn lại</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Còn lại sau trả trước</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Ngày giao</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-stone-600 uppercase">Tình trạng</th>
                                     </tr>
